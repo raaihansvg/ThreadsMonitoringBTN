@@ -8,6 +8,8 @@ import {
   AlertType,
 } from "@prisma/client";
 import { requireOfficer } from "@/lib/auth/session";
+import { sampleDataSchema } from "@/lib/validation/schemas";
+import { DEFAULT_THRESHOLDS } from "@/lib/config/thresholds";
 
 export const dynamic = "force-dynamic";
 
@@ -16,8 +18,18 @@ export async function POST(req: NextRequest) {
     const authError = await requireOfficer(req);
     if (authError) return authError;
 
-    const body = await req.json();
-    const { action } = body;
+    const rawBody = await req.json().catch(() => null);
+    const parsed = sampleDataSchema.safeParse(rawBody);
+    if (!parsed.success) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: parsed.error.issues[0]?.message || "Payload tidak valid.",
+        },
+        { status: 400 }
+      );
+    }
+    const { action } = parsed.data;
 
     if (action === "clear") {
       await prisma.mention.deleteMany({
@@ -151,7 +163,7 @@ export async function POST(req: NextRequest) {
             topik: "BTN Mobile",
             periode: "17 Okt 2026",
             jumlah: 4,
-            ambangDipakai: 2,
+            ambangDipakai: DEFAULT_THRESHOLDS.negativeThreshold,
             dibaca: false,
             dibuatPada: now,
           },

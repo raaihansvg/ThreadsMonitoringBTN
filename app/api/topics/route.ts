@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireOfficer } from "@/lib/auth/session";
+import { saveTopicSchema } from "@/lib/validation/schemas";
 
 export const dynamic = "force-dynamic";
 
@@ -26,15 +27,27 @@ export async function POST(req: NextRequest) {
     const authError = await requireOfficer(req);
     if (authError) return authError;
 
-    const body = await req.json();
-    const { id, nama, kataKunci, aktif } = body;
-
-    if (!nama || typeof nama !== "string") {
+    const rawBody = await req.json().catch(() => null);
+    if (!rawBody) {
       return NextResponse.json(
-        { ok: false, error: "Nama topik wajib diisi." },
+        { ok: false, error: "Body JSON tidak boleh kosong." },
         { status: 400 }
       );
     }
+
+    const parsed = saveTopicSchema.safeParse(rawBody);
+    if (!parsed.success) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error:
+            parsed.error.issues[0]?.message || "Payload topik tidak valid.",
+        },
+        { status: 400 }
+      );
+    }
+
+    const { id, nama, kataKunci, aktif } = parsed.data;
 
     if (id) {
       const updated = await prisma.topic.update({
@@ -78,7 +91,7 @@ export async function DELETE(req: NextRequest) {
 
     if (!id) {
       return NextResponse.json(
-        { ok: false, error: "ID topik wajib diisi." },
+        { ok: false, error: "Parameter ID topik wajib disertakan." },
         { status: 400 }
       );
     }

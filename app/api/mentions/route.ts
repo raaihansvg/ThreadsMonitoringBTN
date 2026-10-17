@@ -9,6 +9,8 @@ import {
 import { requireOfficer } from "@/lib/auth/session";
 import { validateThreadsUrl } from "@/lib/url";
 import { maskPii } from "@/lib/pii";
+import { createMentionSchema } from "@/lib/validation/schemas";
+import { selectTopic } from "@/lib/analysis/topicSelector";
 
 export const dynamic = "force-dynamic";
 
@@ -52,7 +54,7 @@ export async function GET(req: NextRequest) {
         : { sumberInput: { not: InputSourceType.CONTOH } }),
     };
 
-    if (topik && topik !== "Semua") {
+    if (topik && topik !== "Semua" && topik !== "Semua Topik") {
       where.topik = topik;
     }
     if (sentimen) {
@@ -113,7 +115,27 @@ export async function POST(req: NextRequest) {
     const authError = await requireOfficer(req);
     if (authError) return authError;
 
-    const body = await req.json();
+    const rawBody = await req.json().catch(() => null);
+    if (!rawBody) {
+      return NextResponse.json(
+        { ok: false, error: "Bad Request: Body JSON tidak boleh kosong." },
+        { status: 400 }
+      );
+    }
+
+    // 1. Validasi Payload dengan Zod Schema
+    const parsed = createMentionSchema.safeParse(rawBody);
+    if (!parsed.success) {
+      const firstIssue = parsed.error.issues[0];
+      return NextResponse.json(
+        {
+          ok: false,
+          error: `Validasi gagal: ${firstIssue?.message || "Format data tidak sesuai."}`,
+        },
+        { status: 400 }
+      );
+    }
+
     const {
       linkAsli,
       teksPostingan,
@@ -125,7 +147,8 @@ export async function POST(req: NextRequest) {
       kataKunci,
       penyediaAnalisis,
       sumberInput,
-    } = body;
+      status: requestStatus,
+    } = parsed.data;
 
     // AC-01: Validasi URL Threads resmi (HTTPS & domain threads.net / threads.com)
     const urlCheck = validateThreadsUrl(linkAsli);
@@ -157,18 +180,30 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // AC-05: Samarkan data pribadi (PII) sebelum disimpan
-    const { maskedText } = maskPii(teksPostingan || "");
+    // AC-05: Penyamaran PII DI SERVER (Server-Side Sanitization)
+    const { maskedText: safeText } = maskPii(teksPostingan);
+    const { maskedText: safeHeadline } = maskPii(
+      headline || safeText.slice(0, 80)
+    );
+    const { maskedText: safeRingkasan } = maskPii(
+      ringkasan || safeText.slice(0, 300)
+    );
+
+    // Aturan Penentuan Topik Otomatis jika topik belum dipilih atau "Lainnya"
+    const finalTopik =
+      topik &&
+      topik !== "Lainnya" &&
+      topik !== "Semua" &&
+      topik !== "Semua Topik"
+        ? topik
+        : selectTopic(safeText);
 
     // Entri form manual disimpan langsung sebagai BARU;
     // hanya impor massal dan kiriman ekstensi yang masuk sebagai DRAF untuk ditinjau
     const isDraftSource =
       sumberInput === InputSourceType.IMPOR ||
       sumberInput === InputSourceType.EKSTENSI ||
-      sumberInput === "IMPOR" ||
-      sumberInput === "EKSTENSI" ||
-      body?.status === MentionStatus.DRAF ||
-      body?.status === "DRAF";
+      requestStatus === MentionStatus.DRAF;
 
     const targetStatus = isDraftSource
       ? MentionStatus.DRAF
@@ -178,14 +213,14 @@ export async function POST(req: NextRequest) {
       data: {
         linkAsli,
         linkTernormalisasi: cleanUrl,
-        teksPostingan: maskedText,
+        teksPostingan: safeText,
         sumberInput: sumberInput || InputSourceType.FORM,
-        topik: topik || "Lainnya",
+        topik: finalTopik,
         sentimen: sentimen || Sentiment.NETRAL,
         prioritas: prioritas || Priority.RUTIN,
         status: targetStatus,
-        headline: headline?.slice(0, 100) || "Mention Threads Baru",
-        ringkasan: ringkasan?.slice(0, 400) || maskedText.slice(0, 300),
+        headline: safeHeadline.slice(0, 100),
+        ringkasan: safeRingkasan.slice(0, 400),
         kataKunci: Array.isArray(kataKunci) ? kataKunci : [],
         penyediaAnalisis: penyediaAnalisis || "manual",
       },

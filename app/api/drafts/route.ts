@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { MentionStatus, InputSourceType } from "@prisma/client";
 import { requireOfficer } from "@/lib/auth/session";
+import { draftActionSchema } from "@/lib/validation/schemas";
+import { maskPii } from "@/lib/pii";
 
 export const dynamic = "force-dynamic";
 
@@ -37,22 +39,58 @@ export async function POST(req: NextRequest) {
     const authError = await requireOfficer(req);
     if (authError) return authError;
 
-    const body = await req.json();
-    const { id, action, edits } = body;
-
-    if (!id || !action) {
+    const rawBody = await req.json().catch(() => null);
+    if (!rawBody) {
       return NextResponse.json(
-        { ok: false, error: "ID dan aksi wajib diisi." },
+        { ok: false, error: "Body JSON tidak boleh kosong." },
         { status: 400 }
       );
     }
 
+    const parsed = draftActionSchema.safeParse(rawBody);
+    if (!parsed.success) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error:
+            parsed.error.issues[0]?.message || "Payload aksi draf tidak valid.",
+        },
+        { status: 400 }
+      );
+    }
+
+    const { id, action, edits } = parsed.data;
+
     if (action === "approve") {
+      const sanitizedEdits: Record<string, unknown> = {};
+      if (edits) {
+        if (edits.topik) sanitizedEdits.topik = edits.topik;
+        if (edits.sentimen) sanitizedEdits.sentimen = edits.sentimen;
+        if (edits.prioritas) sanitizedEdits.prioritas = edits.prioritas;
+        if (edits.headline) {
+          sanitizedEdits.headline = maskPii(edits.headline).maskedText.slice(
+            0,
+            100
+          );
+        }
+        if (edits.ringkasan) {
+          sanitizedEdits.ringkasan = maskPii(edits.ringkasan).maskedText.slice(
+            0,
+            400
+          );
+        }
+        if (edits.teksPostingan) {
+          sanitizedEdits.teksPostingan = maskPii(
+            edits.teksPostingan
+          ).maskedText.slice(0, 5000);
+        }
+      }
+
       const updated = await prisma.mention.update({
         where: { id },
         data: {
           status: MentionStatus.BARU,
-          ...(edits || {}),
+          ...sanitizedEdits,
           dikoreksiManual: true,
         },
       });

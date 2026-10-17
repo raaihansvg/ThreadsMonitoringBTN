@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireOfficer } from "@/lib/auth/session";
+import { updateAlertSchema } from "@/lib/validation/schemas";
 
 export const dynamic = "force-dynamic";
 
@@ -36,15 +37,26 @@ export async function PATCH(req: NextRequest) {
     const authError = await requireOfficer(req);
     if (authError) return authError;
 
-    const body = await req.json();
-    const { id } = body;
-
-    if (!id) {
+    const rawBody = await req.json().catch(() => null);
+    if (!rawBody) {
       return NextResponse.json(
-        { ok: false, error: "ID alert wajib diisi." },
+        { ok: false, error: "Body JSON tidak boleh kosong." },
         { status: 400 }
       );
     }
+
+    const parsed = updateAlertSchema.safeParse(rawBody);
+    if (!parsed.success) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: parsed.error.issues[0]?.message || "ID alert tidak valid.",
+        },
+        { status: 400 }
+      );
+    }
+
+    const { id } = parsed.data;
 
     const updated = await prisma.alert.update({
       where: { id },

@@ -37,7 +37,11 @@ export async function GET(req: NextRequest) {
         : { sumberInput: { not: InputSourceType.CONTOH } }),
     };
 
-    if (topicFilter && topicFilter !== "Semua") {
+    if (
+      topicFilter &&
+      topicFilter !== "Semua" &&
+      topicFilter !== "Semua Topik"
+    ) {
       baseWhere.topik = topicFilter;
     }
 
