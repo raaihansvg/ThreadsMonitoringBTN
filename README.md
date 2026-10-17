@@ -14,6 +14,7 @@ Proyek ini menggunakan versi dependensi yang dipin secara eksplisit:
 - **Prisma**: `6.4.1`
 - **@prisma/client**: `6.4.1`
 - **Tailwind CSS**: `3.4.17` (dengan PostCSS `8.5.3` dan Autoprefixer `10.4.20`)
+- **lucide-react**: `1.59.0` (icon library)
 - **ESLint**: `9.21.0` (dengan `eslint-config-next: 15.5.28`)
 - **Prettier**: `3.5.2` (dengan `prettier-plugin-tailwindcss: 0.6.11`)
 - **tsx**: `4.19.3`

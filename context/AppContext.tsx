@@ -1,0 +1,171 @@
+"use client";
+
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  ReactNode,
+} from "react";
+
+export type Role = "penonton" | "petugas";
+export type Granularity = "Harian" | "Mingguan";
+
+export interface DateRange {
+  startDate: string;
+  endDate: string;
+  label: string;
+}
+
+interface AppContextType {
+  role: Role;
+  isAuthenticated: boolean;
+  login: (token: string) => Promise<{ ok: boolean; error?: string }>;
+  logout: () => Promise<void>;
+  // Modals
+  isTokenModalOpen: boolean;
+  setTokenModalOpen: (open: boolean) => void;
+  isInputModalOpen: boolean;
+  setInputModalOpen: (open: boolean) => void;
+  prefilledUrl: string;
+  openInputModal: (url?: string) => void;
+  isImportModalOpen: boolean;
+  setImportModalOpen: (open: boolean) => void;
+  // Global Filters
+  showSampleData: boolean;
+  setShowSampleData: (show: boolean) => void;
+  dateRange: DateRange;
+  setDateRange: (range: DateRange) => void;
+  granularity: Granularity;
+  setGranularity: (g: Granularity) => void;
+  selectedTopic: string;
+  setSelectedTopic: (topic: string) => void;
+  // Data refresh trigger
+  refreshTrigger: number;
+  triggerRefresh: () => void;
+}
+
+const defaultDateRange: DateRange = {
+  startDate: "2026-09-17T00:00:00.000Z",
+  endDate: "2026-10-17T23:59:59.999Z",
+  label: "30 Hari Terakhir (17 Sep - 17 Okt 2026)",
+};
+
+const AppContext = createContext<AppContextType | undefined>(undefined);
+
+export function AppProvider({ children }: { children: ReactNode }) {
+  const [role, setRole] = useState<Role>("penonton");
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+
+  // Modals
+  const [isTokenModalOpen, setTokenModalOpen] = useState(false);
+  const [isInputModalOpen, setInputModalOpen] = useState(false);
+  const [prefilledUrl, setPrefilledUrl] = useState("");
+  const [isImportModalOpen, setImportModalOpen] = useState(false);
+
+  const openInputModal = (url?: string) => {
+    if (url) {
+      setPrefilledUrl(url);
+    }
+    setInputModalOpen(true);
+  };
+
+  // Filters
+  const [showSampleData, setShowSampleData] = useState(true);
+  const [dateRange, setDateRange] = useState<DateRange>(defaultDateRange);
+  const [granularity, setGranularity] = useState<Granularity>("Harian");
+  const [selectedTopic, setSelectedTopic] = useState<string>("Semua");
+
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const triggerRefresh = () => setRefreshTrigger((prev) => prev + 1);
+
+  // Check initial session
+  useEffect(() => {
+    fetch("/api/auth/token")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.authenticated) {
+          setIsAuthenticated(true);
+          setRole("petugas");
+        } else {
+          setIsAuthenticated(false);
+          setRole("penonton");
+        }
+      })
+      .catch(() => {
+        setIsAuthenticated(false);
+        setRole("penonton");
+      });
+  }, []);
+
+  const login = async (token: string) => {
+    try {
+      const res = await fetch("/api/auth/token", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token }),
+      });
+      const data = await res.json();
+      if (res.ok && data.ok) {
+        setIsAuthenticated(true);
+        setRole("petugas");
+        setTokenModalOpen(false);
+        triggerRefresh();
+        return { ok: true };
+      }
+      return { ok: false, error: data.error || "Token tidak valid." };
+    } catch {
+      return { ok: false, error: "Gagal terhubung ke server." };
+    }
+  };
+
+  const logout = async () => {
+    try {
+      await fetch("/api/auth/token", { method: "DELETE" });
+      setIsAuthenticated(false);
+      setRole("penonton");
+      triggerRefresh();
+    } catch (err) {
+      console.error("Gagal logout:", err);
+    }
+  };
+
+  return (
+    <AppContext.Provider
+      value={{
+        role,
+        isAuthenticated,
+        login,
+        logout,
+        isTokenModalOpen,
+        setTokenModalOpen,
+        isInputModalOpen,
+        setInputModalOpen,
+        prefilledUrl,
+        openInputModal,
+        isImportModalOpen,
+        setImportModalOpen,
+        showSampleData,
+        setShowSampleData,
+        dateRange,
+        setDateRange,
+        granularity,
+        setGranularity,
+        selectedTopic,
+        setSelectedTopic,
+        refreshTrigger,
+        triggerRefresh,
+      }}
+    >
+      {children}
+    </AppContext.Provider>
+  );
+}
+
+export function useApp() {
+  const context = useContext(AppContext);
+  if (!context) {
+    throw new Error("useApp must be used within an AppProvider");
+  }
+  return context;
+}
