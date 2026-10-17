@@ -1,0 +1,94 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Sentiment {
+  POSITIF
+  NETRAL
+  NEGATIF
+}
+
+enum Priority {
+  RUTIN
+  PANTAU
+  PERLU_PERHATIAN
+}
+
+enum MentionStatus {
+  DRAF
+  BARU
+  DIPANTAU
+  SELESAI
+}
+
+enum InputSourceType {
+  FORM
+  EKSTENSI
+  IMPOR
+  CONTOH
+}
+
+enum AlertType {
+  LONJAKAN
+  PERLU_PERHATIAN
+}
+
+model Mention {
+  id                 String          @id @default(cuid())
+  linkAsli           String
+  linkTernormalisasi String          @unique
+  teksPostingan      String          @db.Text
+  sumberInput        InputSourceType
+  tanggalDitemukan   DateTime        @default(now())
+  tanggalPostingan   DateTime?
+  topik              String?
+  sentimen           Sentiment       @default(NETRAL)
+  prioritas          Priority        @default(RUTIN)
+  status             MentionStatus   @default(DRAF)
+  headline           String?         @db.VarChar(100)
+  ringkasan          String?         @db.VarChar(400)
+  kataKunci          String[]
+  penyediaAnalisis   String?
+  dikoreksiManual    Boolean         @default(false)
+  dibuatPada         DateTime        @default(now())
+  diubahPada         DateTime        @updatedAt
+
+  @@index([tanggalDitemukan])
+  @@index([sentimen])
+  @@index([topik])
+  @@index([status])
+}
+
+model Topic {
+  id         String   @id @default(cuid())
+  nama       String   @unique
+  kataKunci  String[]
+  aktif      Boolean  @default(true)
+  dibuatPada DateTime @default(now())
+  diubahPada DateTime @updatedAt
+}
+
+model Alert {
+  id            String    @id @default(cuid())
+  jenis         AlertType
+  topik         String?
+  periode       String?
+  jumlah        Int
+  ambangDipakai Int?
+  dibaca        Boolean   @default(false)
+  dibuatPada    DateTime  @default(now())
+}
+
+model ImportBatch {
+  id             String   @id @default(cuid())
+  sumber         String
+  jumlahBerhasil Int      @default(0)
+  jumlahGagal    Int      @default(0)
+  jumlahDuplikat Int      @default(0)
+  dibuatPada     DateTime @default(now())
+}
