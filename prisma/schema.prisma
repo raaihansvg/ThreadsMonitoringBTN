@@ -92,3 +92,12 @@ model ImportBatch {
   jumlahDuplikat Int      @default(0)
   dibuatPada     DateTime @default(now())
 }
+
+model AlertConfig {
+  id                 String   @id @default("default")
+  volumeThreshold    Int      @default(10)
+  volumeMultiplier   Float    @default(2.0)
+  negativeThreshold  Int      @default(3)
+  negativePercentage Float    @default(40.0)
+  diubahPada         DateTime @updatedAt
+}

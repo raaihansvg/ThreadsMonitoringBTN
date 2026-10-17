@@ -1,10 +1,14 @@
-import { DEFAULT_THRESHOLDS } from "@/lib/config/thresholds";
+import {
+  DEFAULT_THRESHOLDS,
+  SystemThresholds,
+  getThresholds,
+} from "@/lib/config/thresholds";
 
 /**
  * Deteksi Lonjakan Mention dan Sentimen Negatif (AC-11 & FR-14)
  *
- * Nilai ambang bersumber dari konfigurasi terpusat (lib/config/thresholds.ts),
- * tanpa angka tetap (magic numbers) di kode.
+ * Nilai ambang bersumber dari konfigurasi database (AlertConfig),
+ * dengan fallback ke DEFAULT_THRESHOLDS (lib/config/thresholds.ts).
  */
 
 export interface SpikeDetectionOptions {
@@ -30,14 +34,20 @@ export interface SpikeAlert {
   metadata?: Record<string, unknown>;
 }
 
-export function detectSpike(options: SpikeDetectionOptions): SpikeAlert {
+export function detectSpike(
+  options: SpikeDetectionOptions,
+  customThresholds?: Partial<SystemThresholds>
+): SpikeAlert {
   const {
     currentVolume,
     baselineAverage,
-    volumeThresholdMultiplier = DEFAULT_THRESHOLDS.volumeMultiplier,
+    volumeThresholdMultiplier = customThresholds?.volumeMultiplier ??
+      DEFAULT_THRESHOLDS.volumeMultiplier,
     negativeCount = 0,
-    negativeThreshold = DEFAULT_THRESHOLDS.negativeThreshold,
-    negativePercentageThreshold = DEFAULT_THRESHOLDS.negativePercentage,
+    negativeThreshold = customThresholds?.negativeThreshold ??
+      DEFAULT_THRESHOLDS.negativeThreshold,
+    negativePercentageThreshold = customThresholds?.negativePercentage ??
+      DEFAULT_THRESHOLDS.negativePercentage,
   } = options;
 
   // 1. Evaluasi Lonjakan Volume
@@ -85,4 +95,14 @@ export function detectSpike(options: SpikeDetectionOptions): SpikeAlert {
   }
 
   return { triggered: false };
+}
+
+/**
+ * Deteksi lonjakan secara asinkron dengan mengambil ambang batas langsung dari database.
+ */
+export async function detectSpikeAsync(
+  options: SpikeDetectionOptions
+): Promise<SpikeAlert> {
+  const dbThresholds = await getThresholds();
+  return detectSpike(options, dbThresholds);
 }

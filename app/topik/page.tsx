@@ -28,9 +28,12 @@ export default function TopicsConfigPage() {
   const [newTopicName, setNewTopicName] = useState("");
   const [newKeywords, setNewKeywords] = useState("");
 
-  // Ambang Alert (State Lokal)
+  // Ambang Alert (Tersimpan di DB)
   const [mentionThreshold, setMentionThreshold] = useState(10);
+  const [volumeMultiplier, setVolumeMultiplier] = useState(2.0);
   const [negativeThreshold, setNegativeThreshold] = useState(3);
+  const [negativePercentage, setNegativePercentage] = useState(40);
+  const [isSavingThreshold, setIsSavingThreshold] = useState(false);
   const [thresholdSaved, setThresholdSaved] = useState(false);
 
   // Kata Kunci Risiko
@@ -50,13 +53,49 @@ export default function TopicsConfigPage() {
     fetch("/api/topics")
       .then((res) => res.json())
       .then((data) => {
-        if (data.ok && Array.isArray(data.topics)) {
-          setTopics(data.topics);
+        if (data.ok) {
+          if (Array.isArray(data.topics)) {
+            setTopics(data.topics);
+          }
+          if (data.thresholds) {
+            setMentionThreshold(data.thresholds.volumeThreshold);
+            setVolumeMultiplier(data.thresholds.volumeMultiplier);
+            setNegativeThreshold(data.thresholds.negativeThreshold);
+            setNegativePercentage(data.thresholds.negativePercentage);
+          }
         }
         setLoading(false);
       })
       .catch(() => setLoading(false));
   }, [refreshTrigger]);
+
+  const handleSaveThresholds = async () => {
+    if (role !== "petugas") return;
+    setIsSavingThreshold(true);
+    try {
+      const res = await fetch("/api/topics", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: "thresholds",
+          volumeThreshold: mentionThreshold,
+          volumeMultiplier: volumeMultiplier,
+          negativeThreshold: negativeThreshold,
+          negativePercentage: negativePercentage,
+        }),
+      });
+      if (res.ok) {
+        setThresholdSaved(true);
+        setTimeout(() => setThresholdSaved(false), 2000);
+      } else {
+        alert("Gagal menyimpan ambang alert ke database.");
+      }
+    } catch {
+      alert("Terjadi kendala jaringan saat menyimpan ambang.");
+    } finally {
+      setIsSavingThreshold(false);
+    }
+  };
 
   const handleAddTopic = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -346,7 +385,7 @@ export default function TopicsConfigPage() {
               berikut:
             </p>
 
-            <div className="space-y-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div>
                 <label className="mb-1 block text-xs font-bold text-slate-700">
                   Ambang Lonjakan Mention (per hari)
@@ -354,10 +393,28 @@ export default function TopicsConfigPage() {
                 <input
                   type="number"
                   min={1}
-                  max={100}
+                  max={500}
                   value={mentionThreshold}
                   onChange={(e) =>
                     setMentionThreshold(parseInt(e.target.value) || 10)
+                  }
+                  disabled={role !== "petugas"}
+                  className="w-full rounded-xl border border-slate-200 bg-[#F4F7FB] px-3 py-2 text-xs font-bold text-slate-800 focus:bg-white focus:outline-none disabled:opacity-60"
+                />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-xs font-bold text-slate-700">
+                  Pengali Volume Lonjakan (x baseline)
+                </label>
+                <input
+                  type="number"
+                  step="0.1"
+                  min={1.0}
+                  max={10.0}
+                  value={volumeMultiplier}
+                  onChange={(e) =>
+                    setVolumeMultiplier(parseFloat(e.target.value) || 2.0)
                   }
                   disabled={role !== "petugas"}
                   className="w-full rounded-xl border border-slate-200 bg-[#F4F7FB] px-3 py-2 text-xs font-bold text-slate-800 focus:bg-white focus:outline-none disabled:opacity-60"
@@ -371,10 +428,27 @@ export default function TopicsConfigPage() {
                 <input
                   type="number"
                   min={1}
-                  max={50}
+                  max={100}
                   value={negativeThreshold}
                   onChange={(e) =>
                     setNegativeThreshold(parseInt(e.target.value) || 3)
+                  }
+                  disabled={role !== "petugas"}
+                  className="w-full rounded-xl border border-slate-200 bg-[#F4F7FB] px-3 py-2 text-xs font-bold text-slate-800 focus:bg-white focus:outline-none disabled:opacity-60"
+                />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-xs font-bold text-slate-700">
+                  Ambang Persentase Negatif (%)
+                </label>
+                <input
+                  type="number"
+                  min={1}
+                  max={100}
+                  value={negativePercentage}
+                  onChange={(e) =>
+                    setNegativePercentage(parseInt(e.target.value) || 40)
                   }
                   disabled={role !== "petugas"}
                   className="w-full rounded-xl border border-slate-200 bg-[#F4F7FB] px-3 py-2 text-xs font-bold text-slate-800 focus:bg-white focus:outline-none disabled:opacity-60"
@@ -384,17 +458,17 @@ export default function TopicsConfigPage() {
 
             {role === "petugas" && (
               <button
-                onClick={() => {
-                  setThresholdSaved(true);
-                  setTimeout(() => setThresholdSaved(false), 2000);
-                }}
-                className="shadow-2xs flex w-full items-center justify-center gap-1.5 rounded-full bg-[#0A192F] py-2.5 text-xs font-bold text-white transition-colors hover:bg-slate-800"
+                onClick={handleSaveThresholds}
+                disabled={isSavingThreshold}
+                className="shadow-2xs flex w-full items-center justify-center gap-1.5 rounded-full bg-[#0A192F] py-2.5 text-xs font-bold text-white transition-colors hover:bg-slate-800 disabled:opacity-60"
               >
                 {thresholdSaved ? (
                   <>
                     <Check className="h-4 w-4" />
-                    <span>Ambang Tersimpan</span>
+                    <span>Ambang Tersimpan di Database</span>
                   </>
+                ) : isSavingThreshold ? (
+                  <span>Menyimpan...</span>
                 ) : (
                   <span>Simpan Perubahan Ambang</span>
                 )}

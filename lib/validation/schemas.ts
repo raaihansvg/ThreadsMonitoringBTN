@@ -95,6 +95,13 @@ export const saveTopicSchema = z.object({
   aktif: z.boolean().optional(),
 });
 
+export const saveThresholdsSchema = z.object({
+  volumeThreshold: z.number().int().min(1).max(1000).optional(),
+  volumeMultiplier: z.number().min(1.0).max(10.0).optional(),
+  negativeThreshold: z.number().int().min(1).max(500).optional(),
+  negativePercentage: z.number().min(1).max(100).optional(),
+});
+
 export const sampleDataSchema = z.object({
   action: z.enum(["seed", "clear"], {
     errorMap: () => ({

@@ -1,16 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireOfficer } from "@/lib/auth/session";
-import { saveTopicSchema } from "@/lib/validation/schemas";
+import {
+  saveTopicSchema,
+  saveThresholdsSchema,
+} from "@/lib/validation/schemas";
+import { getThresholds, saveThresholds } from "@/lib/config/thresholds";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
-    const topics = await prisma.topic.findMany({
-      orderBy: { nama: "asc" },
-    });
-    return NextResponse.json({ ok: true, topics });
+    const [topics, thresholds] = await Promise.all([
+      prisma.topic.findMany({
+        orderBy: { nama: "asc" },
+      }),
+      getThresholds(),
+    ]);
+    return NextResponse.json({ ok: true, topics, thresholds });
   } catch (error) {
     return NextResponse.json(
       {
@@ -33,6 +40,32 @@ export async function POST(req: NextRequest) {
         { ok: false, error: "Body JSON tidak boleh kosong." },
         { status: 400 }
       );
+    }
+
+    // Penanganan khusus bila payload adalah konfigurasi ambang batas alert
+    const isThresholdPayload =
+      rawBody.type === "thresholds" ||
+      rawBody.volumeThreshold !== undefined ||
+      rawBody.negativeThreshold !== undefined ||
+      rawBody.volumeMultiplier !== undefined ||
+      rawBody.negativePercentage !== undefined;
+
+    if (isThresholdPayload) {
+      const parsedThreshold = saveThresholdsSchema.safeParse(rawBody);
+      if (!parsedThreshold.success) {
+        return NextResponse.json(
+          {
+            ok: false,
+            error:
+              parsedThreshold.error.issues[0]?.message ||
+              "Payload ambang alert tidak valid.",
+          },
+          { status: 400 }
+        );
+      }
+
+      const updated = await saveThresholds(parsedThreshold.data);
+      return NextResponse.json({ ok: true, thresholds: updated });
     }
 
     const parsed = saveTopicSchema.safeParse(rawBody);
