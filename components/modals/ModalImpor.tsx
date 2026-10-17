@@ -211,7 +211,7 @@ export function ModalImpor() {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-xs"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-sm"
       role="dialog"
       aria-modal="true"
       aria-labelledby="modal-import-title"

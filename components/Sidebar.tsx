@@ -42,13 +42,13 @@ export function Sidebar() {
 
   const navItems = [
     {
-      label: "Dash",
+      label: "Dashboard",
       href: "/",
       icon: Activity,
       badge: 0,
     },
     {
-      label: "Post",
+      label: "Mention",
       href: "/mention",
       icon: MessageSquare,
       badge: 0,
@@ -74,8 +74,8 @@ export function Sidebar() {
   ];
 
   return (
-    <aside className="flex shrink-0 items-center justify-between rounded-[32px] border border-slate-200/60 bg-white p-2.5 shadow-sm md:w-[76px] md:flex-col">
-      <div className="flex w-full items-center justify-around gap-2 md:flex-col md:justify-start">
+    <aside className="flex shrink-0 items-center justify-between rounded-[32px] border border-slate-200/60 bg-white p-2.5 shadow-sm md:w-[88px] md:flex-col">
+      <div className="flex w-full items-center justify-around gap-1 md:flex-col md:justify-start md:gap-2">
         {navItems.map((item) => {
           const isActive =
             item.href === "/"
@@ -87,19 +87,19 @@ export function Sidebar() {
             <Link
               key={item.label}
               href={item.href}
-              className={`nav-pill relative flex h-12 w-12 flex-col items-center justify-center rounded-full text-[10px] font-bold transition-all ${
+              className={`nav-pill relative flex h-14 w-full flex-col items-center justify-center gap-0.5 rounded-2xl text-xs font-bold transition-all md:w-[68px] ${
                 isActive
                   ? "bg-[#0055FF] text-white shadow-sm"
-                  : "text-slate-500 hover:bg-slate-100"
+                  : "text-slate-600 hover:bg-slate-100"
               }`}
               aria-label={item.label}
             >
-              <Icon className="mb-0.5 h-4 w-4" strokeWidth={2} />
-              <span>{item.label}</span>
+              <Icon className="h-5 w-5" strokeWidth={2} />
+              <span className="text-[12px] leading-tight">{item.label}</span>
 
               {item.badge > 0 && (
-                <span className="absolute -right-0.5 -top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-[#0A192F] text-[9px] text-white">
-                  {item.badge}
+                <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-[#E60012] px-1 text-[11px] font-bold text-white shadow">
+                  {item.badge > 99 ? "99+" : item.badge}
                 </span>
               )}
             </Link>
@@ -119,7 +119,7 @@ export function Sidebar() {
         className="mt-auto hidden h-11 w-11 items-center justify-center rounded-full bg-[#0A192F] text-white shadow transition hover:bg-[#0055FF] md:flex"
         aria-label="Input Cepat Mention"
       >
-        <ArrowUpRight className="h-4 w-4" strokeWidth={2.2} />
+        <ArrowUpRight className="h-5 w-5" strokeWidth={2.2} />
       </button>
     </aside>
   );
