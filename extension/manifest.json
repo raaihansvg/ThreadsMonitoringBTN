@@ -1,0 +1,24 @@
+{
+  "manifest_version": 3,
+  "name": "BTN Threads Monitoring - Quick Ingest",
+  "version": "1.0.0",
+  "description": "Ekstensi Chrome Petugas Input untuk mengirim postingan Threads langsung ke BTN Threads Monitoring sebagai Draf (FR-09).",
+  "permissions": ["storage"],
+  "host_permissions": [
+    "https://www.threads.net/*",
+    "https://threads.net/*",
+    "http://localhost:3000/*",
+    "http://127.0.0.1:3000/*"
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Kirim Postingan ke BTN Monitoring"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://www.threads.net/*", "https://threads.net/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}

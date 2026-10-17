@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Kirim ke BTN Threads Monitoring</title>
+    <style>
+      body {
+        width: 320px;
+        font-family:
+          -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        margin: 0;
+        padding: 14px;
+        background-color: #f4f7fb;
+        color: #0a192f;
+      }
+      .header {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        border-bottom: 1px solid #e2e8f0;
+        padding-bottom: 8px;
+        margin-bottom: 12px;
+      }
+      .badge {
+        font-size: 10px;
+        font-weight: bold;
+        background-color: #ebf3ff;
+        color: #0055ff;
+        padding: 2px 8px;
+        border-radius: 12px;
+      }
+      h3 {
+        margin: 0;
+        font-size: 13px;
+        font-weight: 700;
+      }
+      .field {
+        margin-bottom: 10px;
+      }
+      label {
+        display: block;
+        font-size: 11px;
+        font-weight: 600;
+        color: #5a6a7e;
+        margin-bottom: 3px;
+      }
+      input,
+      textarea {
+        width: 100%;
+        box-sizing: border-box;
+        padding: 6px 8px;
+        border: 1px solid #cbd5e1;
+        border-radius: 8px;
+        font-size: 11px;
+        background: #ffffff;
+      }
+      button {
+        width: 100%;
+        padding: 8px;
+        background: #0055ff;
+        color: white;
+        border: none;
+        border-radius: 20px;
+        font-size: 12px;
+        font-weight: bold;
+        cursor: pointer;
+      }
+      button:disabled {
+        background: #94a3b8;
+        cursor: not-allowed;
+      }
+      .status {
+        margin-top: 8px;
+        font-size: 11px;
+        text-align: center;
+      }
+      .error {
+        color: #c10010;
+      }
+      .success {
+        color: #047857;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="header">
+      <span class="badge">FR-09</span>
+      <h3>Kirim ke BTN Monitoring</h3>
+    </div>
+
+    <div class="field">
+      <label for="serverUrl">Alamat Server Aplikasi:</label>
+      <input
+        type="text"
+        id="serverUrl"
+        placeholder="http://localhost:3000"
+        value="http://localhost:3000"
+      />
+    </div>
+
+    <div class="field">
+      <label for="token">Token Petugas (INPUT_TOKEN):</label>
+      <input
+        type="password"
+        id="token"
+        placeholder="Masukkan token petugas..."
+      />
+    </div>
+
+    <div class="field">
+      <label for="postUrl">Tautan Threads Terdeteksi:</label>
+      <input type="text" id="postUrl" readonly />
+    </div>
+
+    <div class="field">
+      <label for="postText">Teks Postingan:</label>
+      <textarea
+        id="postText"
+        rows="3"
+        placeholder="Mengambil teks dari halaman..."
+      ></textarea>
+    </div>
+
+    <button id="btnSend">Kirim sebagai Draf</button>
+    <div id="statusMsg" class="status"></div>
+
+    <script src="popup.js"></script>
+  </body>
+</html>
