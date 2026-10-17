@@ -1,8 +1,10 @@
+import { DEFAULT_THRESHOLDS } from "@/lib/config/thresholds";
+
 /**
- * Deteksi Lonjakan Mention dan Sentimen Negatif (AC-11 & FR-15)
+ * Deteksi Lonjakan Mention dan Sentimen Negatif (AC-11 & FR-14)
  *
- * AC-11: Pada data uji dengan lonjakan buatan, alert muncul beserta penyebabnya;
- * tanpa lonjakan, alert tidak muncul; perubahan ambang berlaku tanpa mengubah kode.
+ * Nilai ambang bersumber dari konfigurasi terpusat (lib/config/thresholds.ts),
+ * tanpa angka tetap (magic numbers) di kode.
  */
 
 export interface SpikeDetectionOptions {
@@ -10,11 +12,11 @@ export interface SpikeDetectionOptions {
   currentVolume: number;
   /** Rata-rata volume dasar (baseline) dari beberapa hari sebelumnya */
   baselineAverage: number;
-  /** Pengali lonjakan volume (default 2.0x = 200% dari baseline) */
+  /** Pengali lonjakan volume (default dari config) */
   volumeThresholdMultiplier?: number;
   /** Jumlah sentimen negatif saat ini */
   negativeCount?: number;
-  /** Ambang batas absolut sentimen negatif yang memicu alert (default 5) */
+  /** Ambang batas absolut sentimen negatif yang memicu alert (default dari config) */
   negativeThreshold?: number;
   /** Persentase sentimen negatif terhadap total (0-100) */
   negativePercentageThreshold?: number;
@@ -32,14 +34,13 @@ export function detectSpike(options: SpikeDetectionOptions): SpikeAlert {
   const {
     currentVolume,
     baselineAverage,
-    volumeThresholdMultiplier = 2.0,
+    volumeThresholdMultiplier = DEFAULT_THRESHOLDS.volumeMultiplier,
     negativeCount = 0,
-    negativeThreshold = 5,
-    negativePercentageThreshold = 40,
+    negativeThreshold = DEFAULT_THRESHOLDS.negativeThreshold,
+    negativePercentageThreshold = DEFAULT_THRESHOLDS.negativePercentage,
   } = options;
 
   // 1. Evaluasi Lonjakan Volume
-  // Terpicu jika volume saat ini melampaui baseline * multiplier, dengan batas minimal volume tertentu
   const effectiveBaseline = Math.max(1, baselineAverage);
   const volumeLimit = effectiveBaseline * volumeThresholdMultiplier;
 

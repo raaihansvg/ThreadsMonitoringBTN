@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { MentionStatus, InputSourceType } from "@prisma/client";
 import { sanitizeFormulaInjection } from "@/lib/export/sanitize";
-import * as XLSX from "xlsx";
+import ExcelJS from "exceljs";
 
 export const dynamic = "force-dynamic";
 
@@ -24,7 +24,7 @@ export async function GET(req: NextRequest) {
         : { sumberInput: { not: InputSourceType.CONTOH } }),
     };
 
-    if (topik && topik !== "Semua") {
+    if (topik && topik !== "Semua" && topik !== "Semua Topik") {
       where.topik = topik;
     }
 
@@ -106,37 +106,44 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    // 2. FORMAT EXCEL (.xlsx sungguhan menggunakan XLSX library)
+    // 2. FORMAT EXCEL (.xlsx sungguhan menggunakan ExcelJS yang aman)
     if (format === "xlsx" || format === "excel") {
-      const worksheetData = [headers, ...sanitizedRows];
-      const worksheet = XLSX.utils.aoa_to_sheet(worksheetData);
+      const workbook = new ExcelJS.Workbook();
+      workbook.creator = "BTN Threads Monitoring";
+      workbook.created = new Date();
+      const worksheet = workbook.addWorksheet("Mentions BTN");
 
-      // Set kolom lebar agar mudah dibaca
-      worksheet["!cols"] = [
-        { wch: 15 }, // ID
-        { wch: 22 }, // Tanggal
-        { wch: 18 }, // Topik
-        { wch: 12 }, // Sentimen
-        { wch: 16 }, // Prioritas
-        { wch: 14 }, // Status
-        { wch: 20 }, // Sumber
-        { wch: 35 }, // Headline
-        { wch: 45 }, // Ringkasan
-        { wch: 50 }, // Teks Postingan
-        { wch: 40 }, // Link
+      worksheet.columns = [
+        { header: "ID", width: 15 },
+        { header: "Tanggal Ditemukan", width: 22 },
+        { header: "Topik", width: 18 },
+        { header: "Sentimen", width: 12 },
+        { header: "Prioritas", width: 16 },
+        { header: "Status", width: 14 },
+        { header: "Sumber Data", width: 20 },
+        { header: "Headline", width: 35 },
+        { header: "Ringkasan", width: 45 },
+        { header: "Teks Postingan (Disamarkan)", width: 50 },
+        { header: "Tautan Sumber Threads", width: 40 },
       ];
 
-      const workbook = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(workbook, worksheet, "Mentions BTN");
+      // Format header baris pertama
+      const headerRow = worksheet.getRow(1);
+      headerRow.font = { bold: true, color: { argb: "FFFFFFFF" } };
+      headerRow.fill = {
+        type: "pattern",
+        pattern: "solid",
+        fgColor: { argb: "FF0A192F" },
+      };
 
-      const buffer = XLSX.write(workbook, {
-        type: "buffer",
-        bookType: "xlsx",
+      sanitizedRows.forEach((row) => {
+        worksheet.addRow(row);
       });
 
+      const buffer = await workbook.xlsx.writeBuffer();
       const filename = `Laporan_ThreadsMonitoring_BTN_${timestamp}.xlsx`;
 
-      return new NextResponse(buffer, {
+      return new NextResponse(Buffer.from(buffer), {
         status: 200,
         headers: {
           "Content-Type":

@@ -6,6 +6,7 @@ import {
   InputSourceType,
   AlertType,
 } from "@prisma/client";
+import { DEFAULT_THRESHOLDS } from "../lib/config/thresholds";
 
 const prisma = new PrismaClient();
 
@@ -523,7 +524,7 @@ async function main() {
         topik: "BTN Mobile",
         periode: "17 Okt 2026",
         jumlah: 4,
-        ambangDipakai: 2,
+        ambangDipakai: DEFAULT_THRESHOLDS.negativeThreshold,
         dibaca: false,
         dibuatPada: now,
       },
@@ -532,7 +533,7 @@ async function main() {
         topik: "Pelayanan & CS",
         periode: "15 Okt 2026",
         jumlah: 3,
-        ambangDipakai: 2,
+        ambangDipakai: DEFAULT_THRESHOLDS.negativeThreshold,
         dibaca: true,
         dibuatPada: subDays(2),
       },
