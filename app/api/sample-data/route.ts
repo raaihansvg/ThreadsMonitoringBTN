@@ -7,21 +7,14 @@ import {
   InputSourceType,
   AlertType,
 } from "@prisma/client";
+import { requireOfficer } from "@/lib/auth/session";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
   try {
-    const cookie = req.cookies.get("petugas_session");
-    if (cookie?.value !== "authenticated") {
-      return NextResponse.json(
-        {
-          ok: false,
-          error: "Aksi ditolak. Masuk sebagai Petugas Input terlebih dahulu.",
-        },
-        { status: 403 }
-      );
-    }
+    const authError = await requireOfficer(req);
+    if (authError) return authError;
 
     const body = await req.json();
     const { action } = body;

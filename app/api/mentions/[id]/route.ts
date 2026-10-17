@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { MentionStatus } from "@prisma/client";
+import { requireOfficer } from "@/lib/auth/session";
 
 export const dynamic = "force-dynamic";
 
@@ -9,16 +10,8 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const cookie = req.cookies.get("petugas_session");
-    if (cookie?.value !== "authenticated") {
-      return NextResponse.json(
-        {
-          ok: false,
-          error: "Aksi ditolak. Masuk sebagai Petugas Input terlebih dahulu.",
-        },
-        { status: 403 }
-      );
-    }
+    const authError = await requireOfficer(req);
+    if (authError) return authError;
 
     const { id } = await params;
     const body = await req.json();
@@ -55,16 +48,8 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const cookie = req.cookies.get("petugas_session");
-    if (cookie?.value !== "authenticated") {
-      return NextResponse.json(
-        {
-          ok: false,
-          error: "Aksi ditolak. Masuk sebagai Petugas Input terlebih dahulu.",
-        },
-        { status: 403 }
-      );
-    }
+    const authError = await requireOfficer(req);
+    if (authError) return authError;
 
     const { id } = await params;
     await prisma.mention.delete({

@@ -6,6 +6,9 @@ import {
   MentionStatus,
   InputSourceType,
 } from "@prisma/client";
+import { requireOfficer } from "@/lib/auth/session";
+import { validateThreadsUrl } from "@/lib/url";
+import { maskPii } from "@/lib/pii";
 
 export const dynamic = "force-dynamic";
 
@@ -107,16 +110,8 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const cookie = req.cookies.get("petugas_session");
-    if (cookie?.value !== "authenticated") {
-      return NextResponse.json(
-        {
-          ok: false,
-          error: "Aksi ditolak. Masuk sebagai Petugas Input terlebih dahulu.",
-        },
-        { status: 403 }
-      );
-    }
+    const authError = await requireOfficer(req);
+    if (authError) return authError;
 
     const body = await req.json();
     const {
@@ -132,29 +127,22 @@ export async function POST(req: NextRequest) {
       sumberInput,
     } = body;
 
-    if (!linkAsli || typeof linkAsli !== "string") {
-      return NextResponse.json(
-        { ok: false, error: "Tautan Threads wajib diisi." },
-        { status: 400 }
-      );
-    }
-
-    // Normalisasi link
-    const cleanUrl = linkAsli.trim().split("?")[0].replace("www.", "");
-    if (
-      !cleanUrl.startsWith("https://threads.net") &&
-      !cleanUrl.startsWith("https://threads.com")
-    ) {
+    // AC-01: Validasi URL Threads resmi (HTTPS & domain threads.net / threads.com)
+    const urlCheck = validateThreadsUrl(linkAsli);
+    if (!urlCheck.valid || !urlCheck.normalizedUrl) {
       return NextResponse.json(
         {
           ok: false,
-          error: "Tautan harus HTTPS dengan host threads.net atau threads.com.",
+          error:
+            urlCheck.error ||
+            "Tautan harus HTTPS dengan host threads.net atau threads.com.",
         },
         { status: 400 }
       );
     }
+    const cleanUrl = urlCheck.normalizedUrl;
 
-    // Cek duplikasi
+    // AC-03: Cek duplikasi dengan tautan ternormalisasi
     const existing = await prisma.mention.findUnique({
       where: { linkTernormalisasi: cleanUrl },
     });
@@ -169,15 +157,22 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Samarkan PII sederhana pada teks
-    let maskedText = teksPostingan || "";
-    maskedText = maskedText
-      .replace(
-        /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/g,
-        "[EMAIL_TERSEMBUNYI]"
-      )
-      .replace(/(?:\+?62|08)[0-9]{8,12}/g, "[NOMOR_TELEPON_TERSEMBUNYI]")
-      .replace(/\b\d{10,16}\b/g, "[NOMOR_REKENING_TERSEMBUNYI]");
+    // AC-05: Samarkan data pribadi (PII) sebelum disimpan
+    const { maskedText } = maskPii(teksPostingan || "");
+
+    // Entri form manual disimpan langsung sebagai BARU;
+    // hanya impor massal dan kiriman ekstensi yang masuk sebagai DRAF untuk ditinjau
+    const isDraftSource =
+      sumberInput === InputSourceType.IMPOR ||
+      sumberInput === InputSourceType.EKSTENSI ||
+      sumberInput === "IMPOR" ||
+      sumberInput === "EKSTENSI" ||
+      body?.status === MentionStatus.DRAF ||
+      body?.status === "DRAF";
+
+    const targetStatus = isDraftSource
+      ? MentionStatus.DRAF
+      : MentionStatus.BARU;
 
     const newMention = await prisma.mention.create({
       data: {
@@ -188,7 +183,7 @@ export async function POST(req: NextRequest) {
         topik: topik || "Lainnya",
         sentimen: sentimen || Sentiment.NETRAL,
         prioritas: prioritas || Priority.RUTIN,
-        status: MentionStatus.BARU,
+        status: targetStatus,
         headline: headline?.slice(0, 100) || "Mention Threads Baru",
         ringkasan: ringkasan?.slice(0, 400) || maskedText.slice(0, 300),
         kataKunci: Array.isArray(kataKunci) ? kataKunci : [],
