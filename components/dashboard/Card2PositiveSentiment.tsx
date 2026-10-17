@@ -15,7 +15,7 @@ export function Card2PositiveSentiment({
 }: Card2Props) {
   return (
     <div className="flex flex-1 flex-col justify-between rounded-[28px] border border-slate-100 bg-white p-5 shadow-sm">
-      <span className="text-xs font-semibold text-slate-400">
+      <span className="text-xs font-semibold text-[#5A6A7E]">
         Sentimen Positif
       </span>
       <div className="my-2">
@@ -24,7 +24,7 @@ export function Card2PositiveSentiment({
         </span>
         <span className="text-2xl font-semibold text-[#0055FF]">%</span>
       </div>
-      <span className="text-[11px] text-slate-500">
+      <span className="text-xs text-[#5A6A7E]">
         {positiveCount} positif · {neutralCount} netral · {negativeCount}{" "}
         negatif
       </span>

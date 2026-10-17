@@ -168,7 +168,7 @@ export default function DraftPage() {
               >
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
-                    <span className="rounded-full bg-[#EBF3FF] px-3 py-0.5 text-[11px] font-bold text-[#0055FF]">
+                    <span className="rounded-full bg-[#EBF3FF] px-3 py-0.5 text-xs font-bold text-[#0055FF]">
                       Sumber:{" "}
                       {d.sumberInput === "EKSTENSI"
                         ? "Ekstensi Chrome"
@@ -276,7 +276,7 @@ export default function DraftPage() {
                         <label className="font-bold text-slate-700">
                           Headline
                         </label>
-                        <span className="text-[10px] text-slate-400">
+                        <span className="text-xs text-[#5A6A7E]">
                           {editHeadline.length}/100
                         </span>
                       </div>
@@ -294,7 +294,7 @@ export default function DraftPage() {
                         <label className="font-bold text-slate-700">
                           Ringkasan
                         </label>
-                        <span className="text-[10px] text-slate-400">
+                        <span className="text-xs text-[#5A6A7E]">
                           {editRingkasan.length}/400
                         </span>
                       </div>

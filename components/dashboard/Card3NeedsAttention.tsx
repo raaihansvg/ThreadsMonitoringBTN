@@ -24,7 +24,7 @@ export function Card3NeedsAttention({ needsAttentionCount }: Card3Props) {
         </span>
         <span className="text-xl font-medium text-[#0055FF]">isu</span>
       </div>
-      <span className="text-[11px] font-semibold text-[#0055FF] underline">
+      <span className="text-xs font-semibold text-[#0055FF] underline">
         Tinjau prioritas tinggi
       </span>
     </Link>

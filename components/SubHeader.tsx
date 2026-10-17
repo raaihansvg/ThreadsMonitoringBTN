@@ -96,7 +96,7 @@ export function SubHeader() {
 
           {isDateOpen && (
             <div className="absolute right-0 z-30 mt-2 w-64 rounded-2xl border border-slate-100 bg-white py-2 shadow-xl">
-              <div className="px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+              <div className="px-3 py-1 text-xs font-bold uppercase tracking-wider text-[#5A6A7E]">
                 Pilih Periode
               </div>
               {dateOptions.map((opt) => (
@@ -147,7 +147,7 @@ export function SubHeader() {
 
           {isExportOpen && (
             <div className="absolute right-0 z-30 mt-2 w-56 rounded-2xl border border-slate-100 bg-white py-2 shadow-xl">
-              <div className="px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+              <div className="px-3 py-1 text-xs font-bold uppercase tracking-wider text-[#5A6A7E]">
                 Format Laporan
               </div>
               <button

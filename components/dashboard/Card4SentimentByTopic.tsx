@@ -46,13 +46,13 @@ export function Card4SentimentByTopic({
         <div className="mb-4 flex items-center justify-between">
           <div className="flex items-center gap-1.5">
             <span className="h-3 w-3 rounded-full bg-[#0055FF]" />
-            <span className="text-xs font-semibold text-slate-600">
+            <span className="text-xs font-semibold text-slate-700">
               Positif/Netral
             </span>
           </div>
           <div className="flex items-center gap-1.5">
             <span className="h-3 w-3 rounded-full bg-[#E60012]" />
-            <span className="text-xs font-semibold text-slate-600">
+            <span className="text-xs font-semibold text-[#C10010]">
               Negatif
             </span>
           </div>
@@ -62,13 +62,13 @@ export function Card4SentimentByTopic({
           <div>
             <p className="text-3xl font-normal tracking-tight text-[#0A192F]">
               {totalMentions}{" "}
-              <span className="text-xs text-slate-400">mention</span>
+              <span className="text-xs text-[#5A6A7E]">mention</span>
             </p>
-            <p className="mt-0.5 text-[10px] font-bold uppercase text-slate-400">
+            <p className="mt-0.5 text-xs font-bold uppercase text-[#5A6A7E]">
               DISTRIBUSI PER TOPIK
             </p>
           </div>
-          <span className="rounded-full bg-[#EBF3FF] px-2.5 py-0.5 text-[10px] font-bold text-[#0055FF]">
+          <span className="rounded-full bg-[#EBF3FF] px-2.5 py-0.5 text-xs font-bold text-[#0055FF]">
             Aktif
           </span>
         </div>
@@ -76,7 +76,7 @@ export function Card4SentimentByTopic({
         <div className="mt-4 space-y-2.5 text-xs">
           {displayList.map((t) => (
             <div key={t.nama}>
-              <div className="mb-1 flex justify-between font-medium text-slate-600">
+              <div className="mb-1 flex justify-between font-medium text-slate-700">
                 <span>{t.nama}</span>
                 <span>{t.count} mention</span>
               </div>
@@ -94,8 +94,8 @@ export function Card4SentimentByTopic({
       <div className="mt-4 grid grid-cols-2 gap-3 border-t border-slate-100 pt-4">
         <Link href="/draf" className="cursor-pointer">
           <p className="text-2xl font-normal text-[#0A192F]">{draftsCount}</p>
-          <p className="text-[10px] font-bold uppercase text-slate-400">DRAF</p>
-          <p className="mt-0.5 text-[10px] text-slate-400">Menunggu tinjauan</p>
+          <p className="text-xs font-bold uppercase text-[#5A6A7E]">DRAF</p>
+          <p className="mt-0.5 text-xs text-[#5A6A7E]">Menunggu tinjauan</p>
         </Link>
         <Link
           href="/alert"
@@ -106,17 +106,15 @@ export function Card4SentimentByTopic({
               {unreadAlertsCount}
             </p>
             {unreadAlertsCount > 0 && (
-              <span className="rounded-full bg-red-50 px-2 py-0.5 text-[9px] font-bold text-[#E60012]">
+              <span className="rounded-full bg-red-50 px-2 py-0.5 text-xs font-bold text-[#C10010]">
                 Baru
               </span>
             )}
           </div>
-          <p className="text-[10px] font-bold uppercase text-slate-400">
-            ALERT
+          <p className="text-xs font-bold uppercase text-[#5A6A7E]">
+            Alert belum dibaca
           </p>
-          <p className="mt-0.5 text-[10px] text-slate-400">
-            Lonjakan terdeteksi
-          </p>
+          <p className="mt-0.5 text-xs text-[#5A6A7E]">Lonjakan terdeteksi</p>
         </Link>
       </div>
     </div>

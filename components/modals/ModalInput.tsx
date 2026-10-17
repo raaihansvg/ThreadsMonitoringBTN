@@ -310,7 +310,7 @@ export function ModalInput() {
         {/* Header Modal */}
         <div className="mb-5 border-b border-slate-100 pb-3">
           <div className="flex items-center gap-2">
-            <span className="rounded-full bg-[#EBF3FF] px-2.5 py-0.5 text-[10px] font-bold text-[#0055FF]">
+            <span className="rounded-full bg-[#EBF3FF] px-2.5 py-0.5 text-xs font-bold text-[#0055FF]">
               Langkah {step} dari 2
             </span>
             <span className="text-xs font-semibold text-slate-400">
@@ -338,7 +338,7 @@ export function ModalInput() {
                   <strong className="block font-bold">
                     Data sensitif telah disamarkan otomatis
                   </strong>
-                  <span className="text-[11px] text-slate-600">
+                  <span className="text-xs text-slate-600">
                     Terdeteksi: {detectedPii.join(", ")}. Nomor rekening, NIK,
                     nomor telepon, atau email disembunyikan demi privasi
                     nasabah.
@@ -354,7 +354,7 @@ export function ModalInput() {
                   Tautan Postingan Threads (Wajib)
                 </label>
                 {isCheckingUrl && (
-                  <span className="flex items-center gap-1 text-[11px] text-[#0055FF]">
+                  <span className="flex items-center gap-1 text-xs text-[#0055FF]">
                     <Loader2 className="h-3 w-3 animate-spin" />
                     <span>Memeriksa tautan...</span>
                   </span>
@@ -378,7 +378,7 @@ export function ModalInput() {
 
               {/* Status Validasi URL */}
               {urlError && (
-                <p className="mt-1 flex items-center gap-1 text-[11px] font-semibold text-[#C10010]">
+                <p className="mt-1 flex items-center gap-1 text-xs font-semibold text-[#C10010]">
                   <AlertCircle className="h-3.5 w-3.5" />
                   <span>{urlError}</span>
                 </p>
@@ -399,7 +399,7 @@ export function ModalInput() {
                       setInputModalOpen(false);
                       window.location.href = `/mention?search=${encodeURIComponent(url.split("?")[0])}`;
                     }}
-                    className="flex items-center gap-1 rounded-full bg-[#0055FF] px-3 py-1 text-[11px] font-bold text-white hover:bg-blue-700"
+                    className="flex items-center gap-1 rounded-full bg-[#0055FF] px-3 py-1 text-xs font-bold text-white hover:bg-blue-700"
                   >
                     <span>Buka entri lama</span>
                     <ExternalLink className="h-3 w-3" />
@@ -532,10 +532,10 @@ export function ModalInput() {
                       Usulan Headline Postingan
                     </label>
                     <span
-                      className={`text-[10px] font-bold ${
+                      className={`text-xs font-bold ${
                         headline.length > 90
-                          ? "text-[#E60012]"
-                          : "text-slate-400"
+                          ? "text-[#C10010]"
+                          : "text-[#5A6A7E]"
                       }`}
                     >
                       {headline.length}/100
@@ -559,10 +559,10 @@ export function ModalInput() {
                       Ringkasan Analisis Sosial Listening
                     </label>
                     <span
-                      className={`text-[10px] font-bold ${
+                      className={`text-xs font-bold ${
                         ringkasan.length > 370
-                          ? "text-[#E60012]"
-                          : "text-slate-400"
+                          ? "text-[#C10010]"
+                          : "text-[#5A6A7E]"
                       }`}
                     >
                       {ringkasan.length}/400
@@ -594,7 +594,7 @@ export function ModalInput() {
                 </div>
 
                 {/* Keterangan Status Awal */}
-                <div className="rounded-xl bg-[#F4F7FB] p-2.5 text-[11px] text-slate-500">
+                <div className="rounded-xl bg-[#F4F7FB] p-2.5 text-xs text-[#5A6A7E]">
                   Status awal mention yang disimpan langsung adalah{" "}
                   <strong>Baru</strong> dan akan terhitung pada statistik
                   Dashboard.

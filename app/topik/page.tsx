@@ -285,7 +285,7 @@ export default function TopicsConfigPage() {
                           {t.nama}
                         </span>
                         <span
-                          className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                          className={`rounded-full px-2 py-0.5 text-xs font-bold ${
                             t.aktif
                               ? "bg-emerald-50 text-emerald-700"
                               : "bg-slate-100 text-slate-500"
@@ -298,7 +298,7 @@ export default function TopicsConfigPage() {
                         {t.kataKunci.map((kw) => (
                           <span
                             key={kw}
-                            className="rounded-md bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-500"
+                            className="rounded-md bg-slate-100 px-2 py-0.5 text-xs font-medium text-[#5A6A7E]"
                           >
                             {kw}
                           </span>

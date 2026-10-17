@@ -98,7 +98,7 @@ export function Sidebar() {
               <span className="text-[12px] leading-tight">{item.label}</span>
 
               {item.badge > 0 && (
-                <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-[#E60012] px-1 text-[11px] font-bold text-white shadow">
+                <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-[#E60012] px-1 text-xs font-bold text-white shadow">
                   {item.badge > 99 ? "99+" : item.badge}
                 </span>
               )}

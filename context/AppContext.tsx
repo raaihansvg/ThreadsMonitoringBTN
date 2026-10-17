@@ -74,7 +74,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [showSampleData, setShowSampleData] = useState(true);
   const [dateRange, setDateRange] = useState<DateRange>(defaultDateRange);
   const [granularity, setGranularity] = useState<Granularity>("Harian");
-  const [selectedTopic, setSelectedTopic] = useState<string>("Semua");
+  const [selectedTopic, setSelectedTopic] = useState<string>("Semua Topik");
 
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const triggerRefresh = () => setRefreshTrigger((prev) => prev + 1);

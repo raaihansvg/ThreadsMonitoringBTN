@@ -46,10 +46,10 @@ export function Card7WeeklySummaryQuickInput({ weeklySummary }: Card7Props) {
           <h2 className="text-xl font-medium uppercase tracking-tight text-[#0A192F]">
             RINGKASAN MINGGUAN
           </h2>
-          <p className="text-xs text-slate-400">
+          <p className="text-xs text-[#5A6A7E]">
             Format kolom{" "}
-            <strong className="text-slate-600">Headline Post</strong> &{" "}
-            <strong className="text-slate-600">Summary Post</strong>
+            <strong className="text-slate-700">Headline Post</strong> &{" "}
+            <strong className="text-slate-700">Summary Post</strong>
           </p>
         </div>
         <button
@@ -74,7 +74,7 @@ export function Card7WeeklySummaryQuickInput({ weeklySummary }: Card7Props) {
         <p className="truncate">
           <strong>Headline:</strong> {weeklySummary.headline}
         </p>
-        <p className="truncate text-slate-500">
+        <p className="truncate text-[#5A6A7E]">
           <strong>Summary:</strong> {weeklySummary.summary}
         </p>
       </div>
@@ -96,7 +96,7 @@ export function Card7WeeklySummaryQuickInput({ weeklySummary }: Card7Props) {
               value={quickUrl}
               onChange={(e) => setQuickUrl(e.target.value)}
               placeholder="Tempel tautan https://www.threads.com/@.../post/..."
-              className="w-full bg-transparent text-xs text-slate-800 placeholder-slate-400 focus:outline-none"
+              className="w-full bg-transparent text-xs text-slate-800 placeholder-[#5A6A7E] focus:outline-none"
             />
           </div>
           <button
@@ -108,7 +108,7 @@ export function Card7WeeklySummaryQuickInput({ weeklySummary }: Card7Props) {
           </button>
         </form>
       ) : (
-        <div className="flex items-center justify-between rounded-full border border-slate-200 bg-[#F4F7FB] px-4 py-2.5 text-xs text-slate-500">
+        <div className="flex items-center justify-between rounded-full border border-slate-200 bg-[#F4F7FB] px-4 py-2.5 text-xs text-[#5A6A7E]">
           <div className="flex items-center gap-2">
             <Lock className="h-3.5 w-3.5 text-slate-400" />
             <span>Masuk sebagai Petugas untuk menambah mention.</span>

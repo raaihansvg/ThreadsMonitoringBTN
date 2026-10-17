@@ -122,7 +122,7 @@ export function TopHeader() {
         >
           <Bell className="h-4 w-4 text-slate-600" strokeWidth={2} />
           <span>Sab, 17 Okt</span>
-          <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#E60012] text-[10px] font-bold text-white">
+          <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#E60012] text-xs font-bold text-white">
             {unreadAlerts}
           </span>
         </Link>

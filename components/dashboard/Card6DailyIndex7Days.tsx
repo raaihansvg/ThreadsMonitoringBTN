@@ -19,10 +19,10 @@ export function Card6DailyIndex7Days({ daily7Days }: Card6Props) {
   return (
     <div className="flex flex-col justify-between rounded-[28px] border border-slate-100 bg-white p-6 shadow-sm lg:col-span-3">
       <div className="flex items-center justify-between">
-        <span className="text-xs font-semibold text-slate-400">
+        <span className="text-xs font-semibold text-[#5A6A7E]">
           Tren 7 Hari
         </span>
-        <span className="rounded-full bg-[#EBF3FF] px-2.5 py-0.5 text-[11px] font-bold text-[#0055FF]">
+        <span className="rounded-full bg-[#EBF3FF] px-2.5 py-0.5 text-xs font-bold text-[#0055FF]">
           {sevenDayTotal} mention
         </span>
       </div>
@@ -47,8 +47,8 @@ export function Card6DailyIndex7Days({ daily7Days }: Card6Props) {
                 className="w-[2px] bg-slate-200"
               />
               <span
-                className={`mt-1 text-[11px] font-bold ${
-                  item.isSpike ? "text-[#0A192F]" : "text-slate-600"
+                className={`mt-1 text-xs font-bold ${
+                  item.isSpike ? "text-[#0A192F]" : "text-slate-700"
                 }`}
               >
                 {item.dayLabel}
@@ -58,7 +58,7 @@ export function Card6DailyIndex7Days({ daily7Days }: Card6Props) {
         })}
       </div>
 
-      <p className="text-center text-[11px] text-slate-400">
+      <p className="text-center text-xs text-[#5A6A7E]">
         Distribusi harian minggu berjalan
       </p>
     </div>

@@ -37,6 +37,7 @@ export function Card1TrendVolume({
   const [showTable, setShowTable] = useState(false);
 
   const maxCount = Math.max(1, ...trendBars.map((b) => b.count));
+  const hasData = totalMentions > 0 && trendBars.some((b) => b.count > 0);
 
   return (
     <div className="flex flex-col justify-between rounded-[28px] border border-slate-100 bg-white p-6 shadow-sm lg:col-span-7">
@@ -44,22 +45,22 @@ export function Card1TrendVolume({
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <span className="inline-block h-3.5 w-3.5 rounded bg-[#0055FF]" />
-            <span className="text-xs font-bold text-slate-700">
+            <span className="text-xs font-bold text-slate-800">
               Analytics • Tren Mention & Deteksi Lonjakan
             </span>
           </div>
           <div className="flex items-center gap-3">
             {isWeeklyAggregation && (
-              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-500">
+              <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-bold text-[#5A6A7E]">
                 Ditampilkan mingguan
               </span>
             )}
-            <span className="text-xs font-bold text-slate-400">
+            <span className="text-xs font-bold text-[#5A6A7E]">
               Ambang: {dailyThreshold}/hari
             </span>
             <button
               onClick={() => setShowTable(!showTable)}
-              className="text-slate-400 transition hover:text-[#0055FF]"
+              className="text-[#5A6A7E] transition hover:text-[#0055FF]"
               title={showTable ? "Lihat Grafik" : "Lihat Tabel"}
               aria-label={showTable ? "Lihat Grafik" : "Lihat Tabel"}
             >
@@ -74,37 +75,37 @@ export function Card1TrendVolume({
 
         <div className="mt-4 flex flex-wrap items-baseline gap-8">
           <div className="flex items-baseline gap-2.5">
-            <span className="text-xs font-medium text-slate-400">Total</span>
+            <span className="text-xs font-medium text-[#5A6A7E]">Total</span>
             <span className="text-4xl font-normal tracking-tight text-[#0A192F]">
               {totalMentions}
             </span>
-            <span className="text-[10px] font-bold uppercase text-slate-400">
+            <span className="text-xs font-bold uppercase text-[#5A6A7E]">
               Mention
             </span>
-            <span className="rounded-full bg-[#EBF3FF] px-2.5 py-0.5 text-[10px] font-bold text-[#0055FF]">
+            <span className="rounded-full bg-[#EBF3FF] px-2.5 py-0.5 text-xs font-bold text-[#0055FF]">
               {growthText}
             </span>
           </div>
           <div className="flex items-baseline gap-2.5">
-            <span className="text-xs font-medium text-slate-400">Negatif</span>
+            <span className="text-xs font-medium text-[#5A6A7E]">Negatif</span>
             <span className="text-4xl font-normal tracking-tight text-[#0A192F]">
               {negativeCount}
             </span>
-            <span className="text-[10px] font-bold uppercase text-slate-400">
+            <span className="text-xs font-bold uppercase text-[#5A6A7E]">
               Isu
             </span>
-            <span className="rounded-full bg-red-50 px-2.5 py-0.5 text-[10px] font-bold text-[#E60012]">
+            <span className="rounded-full bg-red-50 px-2.5 py-0.5 text-xs font-bold text-[#C10010]">
               {negativePercentage}% dari total
             </span>
           </div>
         </div>
       </div>
 
-      {/* Bar Chart Kapsul dengan Aksen Biru BTN & Merah BTN */}
+      {/* Bar Chart Kapsul / Tabel Alternatif */}
       {showTable ? (
         <div className="my-6 max-h-36 overflow-x-auto rounded-xl border border-slate-100">
           <table className="w-full text-left text-xs">
-            <thead className="sticky top-0 border-b border-slate-100 bg-slate-50 font-bold text-slate-500">
+            <thead className="sticky top-0 border-b border-slate-100 bg-slate-50 font-bold text-[#5A6A7E]">
               <tr>
                 <th className="p-2">Tanggal</th>
                 <th className="p-2">Jumlah</th>
@@ -118,19 +119,29 @@ export function Card1TrendVolume({
                   <td className="p-2 font-bold text-[#0A192F]">{b.count}</td>
                   <td className="p-2">
                     {b.isSpike ? (
-                      <span className="font-bold text-[#E60012]">Lonjakan</span>
-                    ) : b.isPeak ? (
+                      <span className="font-bold text-[#C10010]">Lonjakan</span>
+                    ) : b.isPeak && b.count > 0 ? (
                       <span className="font-bold text-[#0055FF]">
                         Tertinggi
                       </span>
                     ) : (
-                      <span className="text-slate-400">Normal</span>
+                      <span className="text-[#5A6A7E]">Normal</span>
                     )}
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
+        </div>
+      ) : !hasData ? (
+        /* Keadaan Kosong (Empty State) bila tidak ada data */
+        <div className="my-6 flex h-36 flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-slate-50/50 p-4 text-center">
+          <p className="text-xs font-bold text-[#5A6A7E]">
+            Belum ada data mention pada rentang waktu ini
+          </p>
+          <p className="mt-1 text-xs text-[#5A6A7E]">
+            Pilih rentang tanggal lain atau gunakan tombol Tambah Mention.
+          </p>
         </div>
       ) : (
         <div
@@ -139,7 +150,10 @@ export function Card1TrendVolume({
           className="my-6 flex h-36 items-end justify-between gap-2 px-2"
         >
           {trendBars.map((b) => {
-            const heightPercent = Math.max(14, (b.count / maxCount) * 100);
+            // Tinggi batang minimum 4px untuk nilai > 0
+            const heightPercent =
+              b.count > 0 ? Math.max(5, (b.count / maxCount) * 100) : 0;
+
             return (
               <div
                 key={b.label}
@@ -147,31 +161,37 @@ export function Card1TrendVolume({
                 aria-label={`${b.label}: ${b.count} mention${b.isSpike ? ", lonjakan" : ""}`}
                 className="flex flex-1 flex-col items-center rounded-lg p-0.5 focus:outline-none focus:ring-1 focus:ring-[#0055FF]"
               >
-                {b.isSpike && (
-                  <span className="mb-1 text-[10px] font-bold text-[#E60012]">
+                {b.isSpike && b.count > 0 && (
+                  <span className="mb-1 text-xs font-bold text-[#C10010]">
                     Lonjakan
                   </span>
                 )}
-                {b.isPeak && !b.isSpike && (
-                  <span className="mb-1 text-[10px] font-bold text-[#0055FF]">
+                {/* Label Tertinggi hanya tampil bila ada batang (> 0) */}
+                {b.isPeak && b.count > 0 && !b.isSpike && (
+                  <span className="mb-1 text-xs font-bold text-[#0055FF]">
                     Tertinggi
                   </span>
                 )}
                 <div
-                  style={{ height: `${heightPercent}%` }}
+                  style={{
+                    height: `${heightPercent}%`,
+                    minHeight: b.count > 0 ? "4px" : "0px",
+                  }}
                   className={`w-4 rounded-full transition-all ${
-                    b.isSpike
-                      ? "bg-[#0055FF] shadow-sm"
-                      : b.isPeak
-                        ? "bg-[#0055FF]"
-                        : "bg-slate-200"
+                    b.count === 0
+                      ? "bg-transparent"
+                      : b.isSpike
+                        ? "bg-[#E60012] shadow-sm"
+                        : b.isPeak
+                          ? "bg-[#0055FF]"
+                          : "bg-slate-200"
                   }`}
                 />
                 <span
-                  className={`mt-2 max-w-full truncate text-center text-[10px] ${
+                  className={`mt-2 max-w-full truncate text-center text-xs ${
                     b.isSpike || b.isPeak
                       ? "font-bold text-[#0A192F]"
-                      : "text-slate-400"
+                      : "text-[#5A6A7E]"
                   }`}
                 >
                   {b.label}
@@ -185,11 +205,11 @@ export function Card1TrendVolume({
       {/* Filter Topik Kapsul */}
       <div className="flex flex-wrap items-center gap-1.5 border-t border-slate-100 pt-2">
         <button
-          onClick={() => setSelectedTopic("Semua")}
+          onClick={() => setSelectedTopic("Semua Topik")}
           className={`rounded-full px-3.5 py-1.5 text-xs transition ${
-            selectedTopic === "Semua"
+            selectedTopic === "Semua Topik" || selectedTopic === "Semua"
               ? "bg-[#0055FF] font-bold text-white"
-              : "bg-slate-100 font-semibold text-slate-600 hover:bg-slate-200"
+              : "bg-slate-100 font-semibold text-slate-700 hover:bg-slate-200"
           }`}
         >
           Semua Topik
@@ -201,7 +221,7 @@ export function Card1TrendVolume({
             className={`rounded-full px-3.5 py-1.5 text-xs transition ${
               selectedTopic === t
                 ? "bg-[#0055FF] font-bold text-white"
-                : "bg-slate-100 font-semibold text-slate-600 hover:bg-slate-200"
+                : "bg-slate-100 font-semibold text-slate-700 hover:bg-slate-200"
             }`}
           >
             {t}

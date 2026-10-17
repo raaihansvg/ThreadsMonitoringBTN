@@ -284,13 +284,13 @@ function MentionPageContent() {
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="flex flex-wrap items-center gap-1.5">
                     {/* Pill Topik */}
-                    <span className="rounded-full bg-[#0A192F] px-3 py-0.5 text-[11px] font-bold text-white">
+                    <span className="rounded-full bg-[#0A192F] px-3 py-0.5 text-xs font-bold text-white">
                       {m.topik || "Lainnya"}
                     </span>
 
                     {/* Pill Sentimen */}
                     <span
-                      className={`rounded-full px-2.5 py-0.5 text-[11px] font-bold ${
+                      className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${
                         isPositive
                           ? "bg-[#EBF3FF] text-[#0055FF]"
                           : isNegative
@@ -307,7 +307,7 @@ function MentionPageContent() {
 
                     {/* Pill Prioritas */}
                     <span
-                      className={`rounded-full px-2.5 py-0.5 text-[11px] font-bold ${
+                      className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${
                         m.prioritas === "PERLU_PERHATIAN"
                           ? "bg-[#E60012] text-white"
                           : m.prioritas === "PANTAU"
@@ -324,7 +324,7 @@ function MentionPageContent() {
 
                     {/* Pill Data Contoh */}
                     {m.sumberInput === "CONTOH" && (
-                      <span className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-0.5 text-[10px] font-bold text-amber-700">
+                      <span className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-0.5 text-xs font-bold text-amber-700">
                         Contoh
                       </span>
                     )}
@@ -365,14 +365,14 @@ function MentionPageContent() {
                       m.kataKunci.map((kw, idx) => (
                         <span
                           key={idx}
-                          className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-600"
+                          className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600"
                         >
                           <Tag className="h-2.5 w-2.5 text-slate-400" />
                           <span>{kw}</span>
                         </span>
                       ))
                     ) : (
-                      <span className="text-[11px] text-slate-400">
+                      <span className="text-xs text-[#5A6A7E]">
                         Tanpa kata kunci
                       </span>
                     )}

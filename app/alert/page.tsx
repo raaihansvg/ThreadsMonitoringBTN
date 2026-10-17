@@ -113,17 +113,24 @@ export default function AlertPage() {
               }`}
             >
               <div>
-                <span
-                  className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold ${
-                    a.jenis === "LONJAKAN"
-                      ? "bg-red-50 text-[#E60012]"
-                      : "bg-[#EBF3FF] text-[#0055FF]"
-                  }`}
-                >
-                  {a.jenis === "LONJAKAN"
-                    ? "LONJAKAN HARIAN"
-                    : "PERLU PERHATIAN"}
-                </span>
+                <div className="flex items-center gap-2">
+                  <span
+                    className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${
+                      a.jenis === "LONJAKAN"
+                        ? "bg-red-50 text-[#C10010]"
+                        : "bg-[#EBF3FF] text-[#0055FF]"
+                    }`}
+                  >
+                    {a.jenis === "LONJAKAN"
+                      ? "LONJAKAN HARIAN"
+                      : "PERLU PERHATIAN"}
+                  </span>
+                  {!a.dibaca && (
+                    <span className="shadow-xs rounded-full bg-[#E60012] px-2 py-0.5 text-xs font-bold text-white">
+                      Baru
+                    </span>
+                  )}
+                </div>
 
                 <h3 className="mt-2 text-sm font-bold text-[#0A192F]">
                   {a.jenis === "LONJAKAN"
@@ -131,9 +138,10 @@ export default function AlertPage() {
                     : `Isu berisiko tinggi terdeteksi pada topik ${a.topik || "Umum"}`}
                 </h3>
 
-                <p className="mt-1 text-xs text-slate-400">
+                <p className="mt-1 text-xs text-[#5A6A7E]">
                   Periode: {a.periode || "17 Okt 2026"} • Ambang dipakai:{" "}
-                  {a.ambangDipakai ?? 10} mention/hari
+                  {a.ambangDipakai ?? (a.jenis === "LONJAKAN" ? 10 : 3)}{" "}
+                  mention/hari
                 </p>
               </div>
 

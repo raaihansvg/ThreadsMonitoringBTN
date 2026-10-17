@@ -334,24 +334,20 @@ export function ModalImpor() {
                 <div className="grid grid-cols-3 gap-2 text-center text-xs">
                   <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-2 font-bold text-emerald-800">
                     <div>{resultSummary.berhasil}</div>
-                    <div className="text-[10px] font-semibold">
-                      Berhasil (Draf)
-                    </div>
+                    <div className="text-xs font-semibold">Berhasil (Draf)</div>
                   </div>
                   <div className="rounded-xl border border-blue-200 bg-blue-50 p-2 font-bold text-blue-800">
                     <div>{resultSummary.duplikat}</div>
-                    <div className="text-[10px] font-semibold">Duplikat</div>
+                    <div className="text-xs font-semibold">Duplikat</div>
                   </div>
                   <div className="rounded-xl border border-rose-200 bg-rose-50 p-2 font-bold text-rose-800">
                     <div>{resultSummary.gagal}</div>
-                    <div className="text-[10px] font-semibold">
-                      Gagal / Format
-                    </div>
+                    <div className="text-xs font-semibold">Gagal / Format</div>
                   </div>
                 </div>
 
                 {resultSummary.problems.length > 0 && (
-                  <div className="max-h-28 divide-y divide-slate-100 overflow-y-auto rounded-xl border border-slate-200 bg-white p-2.5 text-[11px]">
+                  <div className="max-h-28 divide-y divide-slate-100 overflow-y-auto rounded-xl border border-slate-200 bg-white p-2.5 text-xs">
                     {resultSummary.problems.map((p, idx) => (
                       <div key={idx} className="py-1">
                         <span className="font-bold text-slate-700">
@@ -474,24 +470,20 @@ export function ModalImpor() {
                 <div className="grid grid-cols-3 gap-2 text-center text-xs">
                   <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-2 font-bold text-emerald-800">
                     <div>{resultSummary.berhasil}</div>
-                    <div className="text-[10px] font-semibold">
-                      Berhasil (Draf)
-                    </div>
+                    <div className="text-xs font-semibold">Berhasil (Draf)</div>
                   </div>
                   <div className="rounded-xl border border-blue-200 bg-blue-50 p-2 font-bold text-blue-800">
                     <div>{resultSummary.duplikat}</div>
-                    <div className="text-[10px] font-semibold">Duplikat</div>
+                    <div className="text-xs font-semibold">Duplikat</div>
                   </div>
                   <div className="rounded-xl border border-rose-200 bg-rose-50 p-2 font-bold text-rose-800">
                     <div>{resultSummary.gagal}</div>
-                    <div className="text-[10px] font-semibold">
-                      Gagal / Format
-                    </div>
+                    <div className="text-xs font-semibold">Gagal / Format</div>
                   </div>
                 </div>
 
                 {resultSummary.problems.length > 0 && (
-                  <div className="max-h-28 divide-y divide-slate-100 overflow-y-auto rounded-xl border border-slate-200 bg-white p-2.5 text-[11px]">
+                  <div className="max-h-28 divide-y divide-slate-100 overflow-y-auto rounded-xl border border-slate-200 bg-white p-2.5 text-xs">
                     {resultSummary.problems.map((p, idx) => (
                       <div key={idx} className="py-1">
                         <span className="font-bold text-slate-700">
