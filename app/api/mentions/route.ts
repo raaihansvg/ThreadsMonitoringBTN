@@ -6,7 +6,7 @@ import {
   MentionStatus,
   InputSourceType,
 } from "@prisma/client";
-import { requireOfficer } from "@/lib/auth/session";
+import { requireOfficer, isBearerAuth } from "@/lib/auth/session";
 import { validateThreadsUrl } from "@/lib/url";
 import { maskPii } from "@/lib/pii";
 import { createMentionSchema } from "@/lib/validation/schemas";
@@ -112,8 +112,10 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const authError = await requireOfficer(req);
+    const authError = await requireOfficer(req, { allowBearer: true });
     if (authError) return authError;
+
+    const isBearer = isBearerAuth(req);
 
     const rawBody = await req.json().catch(() => null);
     if (!rawBody) {
@@ -198,23 +200,30 @@ export async function POST(req: NextRequest) {
         ? topik
         : selectTopic(safeText);
 
-    // Entri form manual disimpan langsung sebagai BARU;
-    // hanya impor massal dan kiriman ekstensi yang masuk sebagai DRAF untuk ditinjau
-    const isDraftSource =
-      sumberInput === InputSourceType.IMPOR ||
-      sumberInput === InputSourceType.EKSTENSI ||
-      requestStatus === MentionStatus.DRAF;
+    // Aturan Otentikasi & Status (Tahap 1.7):
+    // Permintaan yang diautentikasi lewat Bearer token (ekstensi) HARUS dipaksa
+    // status=DRAF dan sumberInput=EKSTENSI di server, mengabaikan nilai payload (FR-09 & AC-06)
+    let targetStatus: MentionStatus;
+    let targetSumber: InputSourceType;
 
-    const targetStatus = isDraftSource
-      ? MentionStatus.DRAF
-      : MentionStatus.BARU;
+    if (isBearer) {
+      targetStatus = MentionStatus.DRAF;
+      targetSumber = InputSourceType.EKSTENSI;
+    } else {
+      const isDraftSource =
+        sumberInput === InputSourceType.IMPOR ||
+        sumberInput === InputSourceType.EKSTENSI ||
+        requestStatus === MentionStatus.DRAF;
+      targetStatus = isDraftSource ? MentionStatus.DRAF : MentionStatus.BARU;
+      targetSumber = sumberInput || InputSourceType.FORM;
+    }
 
     const newMention = await prisma.mention.create({
       data: {
         linkAsli,
         linkTernormalisasi: cleanUrl,
         teksPostingan: safeText,
-        sumberInput: sumberInput || InputSourceType.FORM,
+        sumberInput: targetSumber,
         topik: finalTopik,
         sentimen: sentimen || Sentiment.NETRAL,
         prioritas: prioritas || Priority.RUTIN,

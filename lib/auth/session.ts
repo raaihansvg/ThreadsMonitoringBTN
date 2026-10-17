@@ -249,12 +249,35 @@ export function validateCsrf(req: NextRequest): boolean {
 }
 
 /**
+ * Memeriksa apakah permintaan membawa Bearer token atau header x-input-token yang sah.
+ */
+export function isBearerAuth(req: NextRequest): boolean {
+  const authHeader = req.headers.get("authorization");
+  const headerToken =
+    req.headers.get("x-input-token") ||
+    (authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null);
+
+  const serverToken = process.env.INPUT_TOKEN?.trim();
+  if (
+    headerToken &&
+    serverToken &&
+    verifyInputToken(headerToken, serverToken)
+  ) {
+    return true;
+  }
+  return false;
+}
+
+/**
  * Guard terpusat requireOfficer()
  * Memeriksa validitas CSRF dan sesi Petugas Input.
+ * Secara baku (default), hanya menerima cookie sesi resmi petugas_session.
+ * Token Bearer HANYA diizinkan jika options.allowBearer === true (khusus POST /api/mentions).
  * Mengembalikan null jika valid, atau NextResponse dengan status 401/403 jika ditolak.
  */
 export async function requireOfficer(
-  req: NextRequest
+  req: NextRequest,
+  options: { allowBearer?: boolean } = { allowBearer: false }
 ): Promise<NextResponse | null> {
   // 1. Proteksi CSRF untuk rute tulis
   if (!validateCsrf(req)) {
@@ -269,17 +292,8 @@ export async function requireOfficer(
   }
 
   // 2. Periksa apakah ada token langsung via Authorization Bearer atau header x-input-token (ekstensi)
-  const authHeader = req.headers.get("authorization");
-  const headerToken =
-    req.headers.get("x-input-token") ||
-    (authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null);
-
-  const serverToken = process.env.INPUT_TOKEN?.trim();
-  if (
-    headerToken &&
-    serverToken &&
-    verifyInputToken(headerToken, serverToken)
-  ) {
+  // CATATAN: Bearer token HANYA diterima jika route memanggil dengan { allowBearer: true }
+  if (options.allowBearer && isBearerAuth(req)) {
     return null; // Otentikasi ekstensi / API client valid
   }
 
