@@ -11,6 +11,7 @@ import {
   ArrowRight,
   ArrowLeft,
   CheckCircle2,
+  Sparkles,
 } from "lucide-react";
 
 export function ModalInput() {
@@ -38,6 +39,12 @@ export function ModalInput() {
   const [headline, setHeadline] = useState("");
   const [ringkasan, setRingkasan] = useState("");
   const [kataKunciInput, setKataKunciInput] = useState("btn mobile, layanan");
+
+  // State Pratinjau FR-02 (Tahap 3A)
+  const [isLoadingPreview, setIsLoadingPreview] = useState(false);
+  const [previewError, setPreviewError] = useState("");
+  const [isTruncated, setIsTruncated] = useState(false);
+  const [canonicalUrl, setCanonicalUrl] = useState("");
 
   // State Checks
   const [isCheckingUrl, setIsCheckingUrl] = useState(false);
@@ -188,6 +195,48 @@ export function ModalInput() {
       .replace(/\b\d{10,15}\b/g, "[NO REKENING DISAMARKAN]");
   };
 
+  const handleFetchPreview = async () => {
+    const trimmed = url.trim();
+    if (!trimmed || urlError) return;
+
+    setIsLoadingPreview(true);
+    setPreviewError("");
+    setIsTruncated(false);
+
+    try {
+      const res = await fetch("/api/preview", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: trimmed }),
+      });
+      const data = await res.json();
+      if (res.ok && data.ok && data.text) {
+        setPostText(data.text);
+        if (data.canonicalUrl) {
+          setCanonicalUrl(data.canonicalUrl);
+          if (data.canonicalUrl !== trimmed) {
+            checkUrlDuplicate(data.canonicalUrl);
+          }
+        }
+        setIsTruncated(!!data.isTruncated);
+        setPreviewError("");
+      } else {
+        setPostText("");
+        setPreviewError(
+          data.error ||
+            "Teks tidak dapat diambil otomatis. Tempel teks postingan."
+        );
+      }
+    } catch {
+      setPostText("");
+      setPreviewError(
+        "Kendala jaringan saat menghubungi server. Tempel teks postingan."
+      );
+    } finally {
+      setIsLoadingPreview(false);
+    }
+  };
+
   const handleProceedToStep2 = () => {
     if (!url.trim()) {
       setUrlError("Tautan Threads wajib diisi.");
@@ -241,6 +290,7 @@ export function ModalInput() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           linkAsli: url.trim(),
+          linkTernormalisasi: canonicalUrl || undefined,
           teksPostingan: postText,
           topik,
           sentimen,
@@ -408,33 +458,87 @@ export function ModalInput() {
 
             {/* Kolom Teks Postingan */}
             <div>
-              <label
-                htmlFor="input-post-text"
-                className="font-bold text-slate-700"
-              >
-                Teks Postingan Threads (Wajib)
-              </label>
+              <div className="flex items-center justify-between">
+                <label
+                  htmlFor="input-post-text"
+                  className="font-bold text-slate-700"
+                >
+                  Teks Postingan Threads (Wajib)
+                </label>
+                <button
+                  type="button"
+                  disabled={!url.trim() || !!urlError || isLoadingPreview}
+                  onClick={handleFetchPreview}
+                  className="flex items-center gap-1 rounded-full bg-[#EBF3FF] px-3 py-1 text-xs font-bold text-[#0055FF] transition hover:bg-blue-100 disabled:opacity-40"
+                  title="Ambil teks postingan dari tautan secara otomatis (FR-02)"
+                >
+                  {isLoadingPreview ? (
+                    <>
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                      <span>Mengambil...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="h-3 w-3" />
+                      <span>Ambil Pratinjau Teks</span>
+                    </>
+                  )}
+                </button>
+              </div>
 
-              {url.trim() && !urlError && !postText.trim() && (
+              {/* Skeleton Loader saat memuat pratinjau */}
+              {isLoadingPreview && (
+                <div
+                  data-testid="preview-skeleton"
+                  className="mt-1.5 flex h-24 w-full animate-pulse flex-col justify-center gap-2 rounded-2xl border border-slate-200 bg-slate-100 p-3.5"
+                >
+                  <div className="h-3 w-3/4 rounded bg-slate-300"></div>
+                  <div className="h-3 w-5/6 rounded bg-slate-200"></div>
+                  <div className="h-3 w-1/2 rounded bg-slate-200"></div>
+                </div>
+              )}
+
+              {/* Pesan Fallback bila pratinjau gagal */}
+              {!isLoadingPreview && previewError && (
                 <div
                   id="preview-fallback-notice"
                   className="mt-1.5 flex items-center gap-2 rounded-2xl border border-amber-200 bg-amber-50 p-2.5 text-xs text-amber-800"
                 >
                   <AlertCircle className="h-4 w-4 shrink-0 text-amber-600" />
+                  <span>{previewError}</span>
+                </div>
+              )}
+
+              {/* Catatan Terpotong */}
+              {!isLoadingPreview && isTruncated && (
+                <div
+                  id="preview-truncated-notice"
+                  className="mt-1.5 flex items-center gap-2 rounded-2xl border border-blue-200 bg-blue-50 p-2.5 text-xs text-blue-800"
+                >
+                  <AlertCircle className="h-4 w-4 shrink-0 text-[#0055FF]" />
                   <span>
-                    Teks tidak dapat diambil otomatis. Tempel teks postingan.
+                    <strong>Catatan:</strong> Teks postingan mungkin terpotong
+                    dari sumber aslinya (&gt;= 480 karakter atau diakhiri
+                    elipsis). Periksa kembali sebelum menyimpan.
                   </span>
                 </div>
               )}
 
-              <textarea
-                id="input-post-text"
-                rows={4}
-                value={postText}
-                onChange={(e) => setPostText(e.target.value)}
-                placeholder="Tempel teks postingan Threads di sini..."
-                className="mt-1.5 w-full rounded-2xl border border-slate-200 bg-[#F4F7FB] p-3 text-xs text-slate-800 placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#0055FF]/20"
-              />
+              {!isLoadingPreview && (
+                <textarea
+                  id="input-post-text"
+                  rows={4}
+                  value={postText}
+                  onChange={(e) => {
+                    setPostText(e.target.value);
+                    if (previewError && e.target.value.trim()) {
+                      setPreviewError("");
+                    }
+                  }}
+                  placeholder="Tempel teks postingan Threads di sini atau klik 'Ambil Pratinjau Teks'..."
+                  className="mt-1.5 w-full rounded-2xl border border-slate-200 bg-[#F4F7FB] p-3 text-xs text-slate-800 placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#0055FF]/20"
+                />
+              )}
             </div>
 
             {/* Aksi Langkah 1 */}
