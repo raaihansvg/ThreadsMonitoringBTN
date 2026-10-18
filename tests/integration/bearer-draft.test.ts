@@ -42,18 +42,20 @@ import {
 } from "@/app/api/topics/route";
 import { POST as sampleDataPost } from "@/app/api/sample-data/route";
 
-describe("Enforcement Otentikasi Bearer Token (FR-09, AC-06, Tahap 1.7)", () => {
+describe("Enforcement Otentikasi Bearer Token (FR-09, AC-06, Tahap 1.8)", () => {
   const host = "localhost:3000";
   const baseUrl = `http://${host}`;
-  const validToken = process.env.INPUT_TOKEN || "test-token-btn-2026";
+  const extensionToken = "test-extension-token-btn-2026";
+  const inputToken = "test-officer-input-token-btn-2026";
 
   beforeEach(() => {
-    process.env.INPUT_TOKEN = validToken;
+    process.env.EXTENSION_TOKEN = extensionToken;
+    process.env.INPUT_TOKEN = inputToken;
     vi.clearAllMocks();
   });
 
   describe("POST /api/mentions dengan Bearer Token", () => {
-    it("memaksa status=DRAF dan sumberInput=EKSTENSI di server meskipun payload meminta status=BARU dan sumber=FORM", async () => {
+    it("memaksa status=DRAF dan sumberInput=EKSTENSI di server saat menggunakan EXTENSION_TOKEN sah", async () => {
       (prisma.mention.findUnique as any).mockResolvedValue(null);
       (prisma.mention.create as any).mockImplementation((args: any) => {
         return Promise.resolve({
@@ -70,7 +72,7 @@ describe("Enforcement Otentikasi Bearer Token (FR-09, AC-06, Tahap 1.7)", () => 
         headers: {
           host,
           origin: baseUrl,
-          authorization: `Bearer ${validToken}`,
+          authorization: `Bearer ${extensionToken}`,
           "content-type": "application/json",
         },
         body: JSON.stringify({
@@ -93,13 +95,53 @@ describe("Enforcement Otentikasi Bearer Token (FR-09, AC-06, Tahap 1.7)", () => 
       expect(savedData.status).toBe("DRAF");
       expect(savedData.sumberInput).toBe("EKSTENSI");
     });
+
+    it("MENOLAK INPUT_TOKEN sebagai Bearer token pada POST /api/mentions (harus 401)", async () => {
+      const req = new NextRequest(`${baseUrl}/api/mentions`, {
+        method: "POST",
+        headers: {
+          host,
+          origin: baseUrl,
+          authorization: `Bearer ${inputToken}`, // Mengirim INPUT_TOKEN sebagai Bearer
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          linkAsli: "https://www.threads.net/@btn/post/987654",
+          teksPostingan: "Uji penolakan input token sebagai bearer.",
+        }),
+      });
+
+      const res = await mentionsPost(req);
+      expect(res.status).toBe(401);
+      const data = await res.json();
+      expect(data.error).toContain("Akses ditolak");
+    });
+
+    it("MENOLAK Bearer token sembarang / tidak valid pada POST /api/mentions (401)", async () => {
+      const req = new NextRequest(`${baseUrl}/api/mentions`, {
+        method: "POST",
+        headers: {
+          host,
+          origin: baseUrl,
+          authorization: "Bearer wrong-token-12345",
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          linkAsli: "https://www.threads.net/@btn/post/987654",
+          teksPostingan: "Uji token sembarang.",
+        }),
+      });
+
+      const res = await mentionsPost(req);
+      expect(res.status).toBe(401);
+    });
   });
 
-  describe("Bearer Token DITOLAK di Semua Route Tulis Selain POST /api/mentions", () => {
+  describe("Bearer Token (EXTENSION_TOKEN) DITOLAK di Semua Route Tulis Selain POST /api/mentions", () => {
     const makeBearerHeader = () => ({
       host,
       origin: baseUrl,
-      authorization: `Bearer ${validToken}`,
+      authorization: `Bearer ${extensionToken}`,
       "content-type": "application/json",
     });
 

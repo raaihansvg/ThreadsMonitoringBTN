@@ -249,15 +249,17 @@ export function validateCsrf(req: NextRequest): boolean {
 }
 
 /**
- * Memeriksa apakah permintaan membawa Bearer token atau header x-input-token yang sah.
+ * Memeriksa apakah permintaan membawa Bearer token atau header x-extension-token yang sah.
+ * PERHATIAN (Tahap 1.8): Bearer token HANYA sah dengan EXTENSION_TOKEN (terpisah dari INPUT_TOKEN).
+ * INPUT_TOKEN tidak lagi diterima sebagai Bearer.
  */
 export function isBearerAuth(req: NextRequest): boolean {
   const authHeader = req.headers.get("authorization");
   const headerToken =
-    req.headers.get("x-input-token") ||
-    (authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null);
+    req.headers.get("x-extension-token") ||
+    (authHeader?.startsWith("Bearer ") ? authHeader.slice(7).trim() : null);
 
-  const serverToken = process.env.INPUT_TOKEN?.trim();
+  const serverToken = process.env.EXTENSION_TOKEN?.trim();
   if (
     headerToken &&
     serverToken &&
