@@ -34,6 +34,7 @@ export const createMentionSchema = z.object({
   kataKunci: z.array(z.string().max(50)).max(30).optional(),
   penyediaAnalisis: z.string().max(50).optional(),
   sumberInput: z.nativeEnum(InputSourceType).optional(),
+  linkTernormalisasi: z.string().max(2048).optional(),
 });
 
 export const updateMentionSchema = z.object({

@@ -22,6 +22,18 @@ describe("Validasi Tautan Threads (AC-01)", () => {
     );
   });
 
+  it("menerima URL threads.com format /share/<id> valid dengan protokol HTTPS", () => {
+    const res = validateThreadsUrl("https://www.threads.com/share/H5AYuuM-5/");
+    expect(res.valid).toBe(true);
+    expect(res.normalizedUrl).toBe("https://threads.net/share/H5AYuuM-5");
+  });
+
+  it("menerima URL threads.net format /share/<id> tanpa www", () => {
+    const res = validateThreadsUrl("https://threads.net/share/OLU5ZNFDe");
+    expect(res.valid).toBe(true);
+    expect(res.normalizedUrl).toBe("https://threads.net/share/OLU5ZNFDe");
+  });
+
   it("menolak URL non-HTTPS (mis. http://)", () => {
     const res = validateThreadsUrl(
       "http://threads.net/@user_btn/post/DF123456"
@@ -36,10 +48,15 @@ describe("Validasi Tautan Threads (AC-01)", () => {
     expect(res.error).toContain("threads.net atau threads.com");
   });
 
-  it("menolak URL Threads yang bukan postingan spesifik", () => {
+  it("menolak URL Threads yang bukan postingan spesifik atau share", () => {
     const res = validateThreadsUrl("https://threads.net/@user_btn");
     expect(res.valid).toBe(false);
-    expect(res.error).toContain("/post/");
+    expect(res.error).toContain("/post/ atau /share/<id>");
+  });
+
+  it("menolak URL /share/ tanpa ID", () => {
+    const res = validateThreadsUrl("https://threads.net/share/");
+    expect(res.valid).toBe(false);
   });
 
   it("menolak input kosong atau null", () => {

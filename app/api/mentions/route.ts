@@ -165,7 +165,15 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
-    const cleanUrl = urlCheck.normalizedUrl;
+
+    // Pakai alamat kanonik /@akun/post/<id> (tanpa query) jika ada dari hasil pratinjau redirect
+    let cleanUrl = urlCheck.normalizedUrl;
+    if (parsed.data.linkTernormalisasi) {
+      const canonCheck = validateThreadsUrl(parsed.data.linkTernormalisasi);
+      if (canonCheck.valid && canonCheck.normalizedUrl) {
+        cleanUrl = canonCheck.normalizedUrl;
+      }
+    }
 
     // AC-03: Cek duplikasi dengan tautan ternormalisasi
     const existing = await prisma.mention.findUnique({

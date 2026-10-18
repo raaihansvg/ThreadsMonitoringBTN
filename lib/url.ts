@@ -54,12 +54,17 @@ export function validateThreadsUrl(rawUrl: string): UrlValidationResult {
     };
   }
 
-  // Jalur (pathname) wajib memuat postingan (/post/ atau /@user/post/)
-  if (!parsed.pathname.includes("/post/")) {
+  // Jalur (pathname) wajib memuat postingan (/post/ atau /@user/post/) atau tautan berbagi (/share/<id>)
+  const isPost = parsed.pathname.includes("/post/");
+  const isShare =
+    parsed.pathname.startsWith("/share/") &&
+    parsed.pathname.replace(/^\/share\/?/, "").length > 0;
+
+  if (!isPost && !isShare) {
     return {
       valid: false,
       error:
-        "Tautan harus mengarah ke postingan Threads yang spesifik (memuat /post/).",
+        "Tautan harus mengarah ke postingan Threads yang spesifik (/post/ atau /share/<id>).",
     };
   }
 
@@ -104,4 +109,11 @@ export function normalizeThreadsUrl(rawUrl: string): string {
     // Fallback jika parsing URL gagal
     return rawUrl.trim().split("?")[0].replace("www.", "");
   }
+}
+
+/**
+ * Normalisasi alamat kanonikal post Threads: https://threads.net/@akun/post/<id> (tanpa query)
+ */
+export function canonicalizeThreadsUrl(resolvedUrl: string): string {
+  return normalizeThreadsUrl(resolvedUrl);
 }
