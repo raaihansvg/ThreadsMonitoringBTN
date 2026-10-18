@@ -196,22 +196,24 @@ export function ModalInput() {
     if (duplicateEntry) {
       return;
     }
+    if (!postText.trim()) {
+      alert("Teks tidak dapat diambil otomatis. Tempel teks postingan.");
+      return;
+    }
 
     const masked = getMaskedText(postText);
     setPostText(masked);
 
-    // Run auto-analysis simulation with fallback
+    // Run auto-analysis with fallback
     setIsAnalyzing(true);
     setAnalysisFailed(false);
     setStep(2);
 
     setTimeout(() => {
       setIsAnalyzing(false);
-      // Auto-extract keywords and headline if empty
+      // Auto-extract keywords and headline from real input without simulating fake text
       if (!headline) {
-        const textSample =
-          masked || "Mention nasabah terkait produk perbankan Bank BTN.";
-        const snippet = textSample.slice(0, 80);
+        const snippet = masked.slice(0, 80);
         setHeadline(
           snippet.length > 20
             ? snippet
@@ -219,11 +221,7 @@ export function ModalInput() {
         );
       }
       if (!ringkasan) {
-        setRingkasan(
-          masked
-            ? masked.slice(0, 350)
-            : `Postingan Threads terkait layanan ${topik} yang dicatat untuk pemantauan social listening.`
-        );
+        setRingkasan(masked.slice(0, 350));
       }
     }, 600);
   };
@@ -414,14 +412,27 @@ export function ModalInput() {
                 htmlFor="input-post-text"
                 className="font-bold text-slate-700"
               >
-                Teks Postingan Threads (Opsional jika pratinjau berhasil)
+                Teks Postingan Threads (Wajib)
               </label>
+
+              {url.trim() && !urlError && !postText.trim() && (
+                <div
+                  id="preview-fallback-notice"
+                  className="mt-1.5 flex items-center gap-2 rounded-2xl border border-amber-200 bg-amber-50 p-2.5 text-xs text-amber-800"
+                >
+                  <AlertCircle className="h-4 w-4 shrink-0 text-amber-600" />
+                  <span>
+                    Teks tidak dapat diambil otomatis. Tempel teks postingan.
+                  </span>
+                </div>
+              )}
+
               <textarea
                 id="input-post-text"
                 rows={4}
                 value={postText}
                 onChange={(e) => setPostText(e.target.value)}
-                placeholder="Tempel atau ketik teks kutipan postingan Threads di sini..."
+                placeholder="Tempel teks postingan Threads di sini..."
                 className="mt-1.5 w-full rounded-2xl border border-slate-200 bg-[#F4F7FB] p-3 text-xs text-slate-800 placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#0055FF]/20"
               />
             </div>
@@ -437,7 +448,12 @@ export function ModalInput() {
               </button>
               <button
                 type="button"
-                disabled={!url.trim() || !!urlError || !!duplicateEntry}
+                disabled={
+                  !url.trim() ||
+                  !!urlError ||
+                  !!duplicateEntry ||
+                  !postText.trim()
+                }
                 onClick={handleProceedToStep2}
                 className="flex items-center gap-1.5 rounded-full bg-[#0055FF] px-5 py-2 text-xs font-bold text-white transition hover:bg-blue-700 disabled:opacity-40"
               >
