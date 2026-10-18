@@ -8,10 +8,14 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   // 1. Muat pengaturan dari chrome.storage.local
   if (chrome.storage && chrome.storage.local) {
-    chrome.storage.local.get(["serverUrl", "inputToken"], (res) => {
-      if (res.serverUrl) serverUrlInput.value = res.serverUrl;
-      if (res.inputToken) tokenInput.value = res.inputToken;
-    });
+    chrome.storage.local.get(
+      ["serverUrl", "extensionToken", "inputToken"],
+      (res) => {
+        if (res.serverUrl) serverUrlInput.value = res.serverUrl;
+        if (res.extensionToken) tokenInput.value = res.extensionToken;
+        else if (res.inputToken) tokenInput.value = res.inputToken;
+      }
+    );
   }
 
   // 2. Ambil data URL dan teks dari tab aktif
@@ -48,26 +52,40 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     if (!token) {
       statusMsg.className = "status error";
-      statusMsg.textContent = "Token petugas wajib diisi.";
+      statusMsg.textContent = "Token ekstensi (EXTENSION_TOKEN) wajib diisi.";
       return;
     }
 
-    if (!linkAsli || !linkAsli.includes("threads.")) {
+    const isThreadsDomain =
+      linkAsli.includes("threads.net") || linkAsli.includes("threads.com");
+    if (!linkAsli || !isThreadsDomain) {
       statusMsg.className = "status error";
       statusMsg.textContent =
-        "Tautan harus berasal dari threads.net/threads.com.";
+        "Tautan harus berasal dari domain threads.net atau threads.com. Data tidak dikirim.";
       return;
     }
 
-    if (!teksPostingan) {
+    if (!linkAsli.includes("/post/")) {
       statusMsg.className = "status error";
-      statusMsg.textContent = "Teks postingan tidak boleh kosong.";
+      statusMsg.textContent =
+        "Halaman aktif bukan postingan Threads yang spesifik (harus memuat /post/). Data tidak dikirim.";
+      return;
+    }
+
+    if (!teksPostingan || teksPostingan.trim().length === 0) {
+      statusMsg.className = "status error";
+      statusMsg.textContent =
+        "Teks postingan kosong atau tidak berhasil diekstraksi dari halaman. Data tidak dikirim.";
       return;
     }
 
     // Simpan token & serverUrl untuk penggunaan selanjutnya
     if (chrome.storage && chrome.storage.local) {
-      chrome.storage.local.set({ serverUrl, inputToken: token });
+      chrome.storage.local.set({
+        serverUrl,
+        extensionToken: token,
+        inputToken: token,
+      });
     }
 
     btnSend.disabled = true;
