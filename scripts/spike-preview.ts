@@ -1,26 +1,30 @@
 /**
  * SPIKE Q-02: Skrip Uji Manual Pratinjau Metadata Tautan Threads
  *
- * Batasan & Ketentuan:
+ * Batasan & Ketentuan (Diperbarui sesuai Koreksi Audit Tahap 1.8):
  * 1. Membaca maksimal 10 URL dari scripts/spike-urls.txt.
- * 2. Protokol WAJIB HTTPS dan host WAJIB threads.net atau threads.com (divalidasi di setiap redirect, maks 3).
+ * 2. Protokol WAJIB HTTPS dan host WAJIB threads.net / threads.com / instagram.com (divalidasi di setiap redirect, maks 5).
  * 3. Timeout 8 detik per permintaan.
  * 4. Batas pembacaan badan respon maksimal 1 MB (1.048.576 byte).
  * 5. Tanpa cookie, tanpa sesi login, tanpa headless browser.
- * 6. Jeda berurutan 2 detik antar permintaan.
- * 7. Mengekstrak <title>, og:title, og:description, dan twitter:description.
- * 8. Segera BERHENTI jika menerima kode status HTTP 403 atau 429 (tidak menembus blokir).
+ * 6. User-Agent jujur: "ThreadsMonitoring-spike/0.1" tanpa header penyamaran browser.
+ * 7. Jeda berurutan 2 detik antar permintaan.
+ * 8. Menampilkan: alamat akhir (host+path), jumlah redirect, ada/tidaknya og:title dan og:description, dan status akhir.
+ * 9. Segera BERHENTI jika menerima kode status HTTP 403 atau 429 (tidak menembus blokir).
  */
 
 import fs from "fs";
 import path from "path";
 
 interface PreviewRow {
-  url: string;
-  status: number | string;
+  urlAsal: string;
+  alamatAkhir: string; // Host & path saja
+  jumlahRedirect: number;
+  hasOgTitle: string; // "Ya" / "Tidak"
+  hasOgDesc: string; // "Ya" / "Tidak"
+  statusAkhir: number | string;
   panjangTeks: number;
   snippet120: string;
-  catatan?: string;
 }
 
 const ALLOWED_HOSTS = [
@@ -28,6 +32,8 @@ const ALLOWED_HOSTS = [
   "www.threads.net",
   "threads.com",
   "www.threads.com",
+  "instagram.com",
+  "www.instagram.com",
 ];
 
 const MAX_URLS = 10;
@@ -50,9 +56,20 @@ function isValidThreadsUrl(urlString: string): boolean {
   }
 }
 
+function getHostAndPath(urlString: string): string {
+  try {
+    const parsed = new URL(urlString);
+    return `${parsed.host}${parsed.pathname}`;
+  } catch {
+    return urlString;
+  }
+}
+
 function extractMeta(html: string): {
   title: string;
+  hasOgTitle: boolean;
   ogTitle: string;
+  hasOgDescription: boolean;
   ogDescription: string;
   twitterDescription: string;
   bestText: string;
@@ -86,13 +103,26 @@ function extractMeta(html: string): {
   const bestText =
     ogDescription || twitterDescription || ogTitle || title || "";
 
-  return { title, ogTitle, ogDescription, twitterDescription, bestText };
+  return {
+    title,
+    hasOgTitle: !!ogTitleMatch && ogTitle.length > 0,
+    ogTitle,
+    hasOgDescription: !!ogDescMatch && ogDescription.length > 0,
+    ogDescription,
+    twitterDescription,
+    bestText,
+  };
 }
 
 async function fetchWithRedirects(
   initialUrl: string,
-  maxRedirects = 3
-): Promise<{ status: number; text: string; finalUrl: string }> {
+  maxRedirects = 5
+): Promise<{
+  status: number;
+  text: string;
+  finalUrl: string;
+  redirectsCount: number;
+}> {
   let currentUrl = initialUrl;
   let redirectsCount = 0;
 
@@ -110,11 +140,7 @@ async function fetchWithRedirects(
       const res = await fetch(currentUrl, {
         method: "GET",
         headers: {
-          "User-Agent":
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-          Accept:
-            "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-          "Accept-Language": "id,en-US;q=0.9,en;q=0.8",
+          "User-Agent": "ThreadsMonitoring-spike/0.1",
         },
         redirect: "manual",
         signal: controller.signal,
@@ -136,7 +162,12 @@ async function fetchWithRedirects(
 
       // Handle 403 / 429
       if (res.status === 403 || res.status === 429) {
-        return { status: res.status, text: "", finalUrl: currentUrl };
+        return {
+          status: res.status,
+          text: "",
+          finalUrl: currentUrl,
+          redirectsCount,
+        };
       }
 
       // Batasi pembacaan maksimal 1 MB
@@ -147,6 +178,7 @@ async function fetchWithRedirects(
           status: res.status,
           text: text.slice(0, MAX_BYTES),
           finalUrl: currentUrl,
+          redirectsCount,
         };
       }
 
@@ -168,7 +200,7 @@ async function fetchWithRedirects(
 
       const buffer = Buffer.concat(chunks);
       const text = buffer.toString("utf-8");
-      return { status: res.status, text, finalUrl: currentUrl };
+      return { status: res.status, text, finalUrl: currentUrl, redirectsCount };
     } catch (err: any) {
       clearTimeout(timer);
       if (err.name === "AbortError") {
@@ -203,6 +235,9 @@ async function main() {
   }
 
   console.log(`=== Memulai Evaluasi SPIKE Q-02 (${urls.length} URL) ===\n`);
+  console.log(
+    `User-Agent: ThreadsMonitoring-spike/0.1 (tanpa penyamaran browser)\n`
+  );
 
   const results: PreviewRow[] = [];
 
@@ -212,17 +247,20 @@ async function main() {
 
     if (!isValidThreadsUrl(url)) {
       results.push({
-        url,
-        status: "INVALID",
+        urlAsal: url,
+        alamatAkhir: "-",
+        jumlahRedirect: 0,
+        hasOgTitle: "Tidak",
+        hasOgDesc: "Tidak",
+        statusAkhir: "INVALID",
         panjangTeks: 0,
-        snippet120: "-",
-        catatan: "Bukan URL HTTPS Threads yang valid",
+        snippet120: "Bukan URL HTTPS Threads yang valid",
       });
       continue;
     }
 
     try {
-      const response = await fetchWithRedirects(url, 3);
+      const response = await fetchWithRedirects(url, 5);
 
       if (response.status === 403 || response.status === 429) {
         console.warn(
@@ -232,11 +270,14 @@ async function main() {
           "Menghentikan evaluasi sesuai instruksi keamanan (tidak menembus blokir)."
         );
         results.push({
-          url,
-          status: response.status,
+          urlAsal: url,
+          alamatAkhir: getHostAndPath(response.finalUrl),
+          jumlahRedirect: response.redirectsCount,
+          hasOgTitle: "Tidak",
+          hasOgDesc: "Tidak",
+          statusAkhir: response.status,
           panjangTeks: 0,
-          snippet120: "-",
-          catatan: "Akses diblokir / Rate Limited (403/429)",
+          snippet120: "Akses diblokir / Rate Limited (403/429)",
         });
         break;
       }
@@ -245,23 +286,25 @@ async function main() {
       const cleanSnippet = meta.bestText.replace(/\s+/g, " ").slice(0, 120);
 
       results.push({
-        url,
-        status: response.status,
+        urlAsal: url,
+        alamatAkhir: getHostAndPath(response.finalUrl),
+        jumlahRedirect: response.redirectsCount,
+        hasOgTitle: meta.hasOgTitle ? "Ya" : "Tidak",
+        hasOgDesc: meta.hasOgDescription ? "Ya" : "Tidak",
+        statusAkhir: response.status,
         panjangTeks: meta.bestText.length,
         snippet120: cleanSnippet || "(Metadata kosong)",
-        catatan: meta.ogDescription
-          ? "og:description"
-          : meta.title
-            ? "title"
-            : "-",
       });
     } catch (err: any) {
       results.push({
-        url,
-        status: "ERROR",
+        urlAsal: url,
+        alamatAkhir: "-",
+        jumlahRedirect: 0,
+        hasOgTitle: "Tidak",
+        hasOgDesc: "Tidak",
+        statusAkhir: "ERROR",
         panjangTeks: 0,
-        snippet120: "-",
-        catatan: err.message || "Gagal mengambil data",
+        snippet120: err.message || "Gagal mengambil data",
       });
     }
 
@@ -274,11 +317,14 @@ async function main() {
   console.log("\n=== HASIL EVALUASI SPIKE PRATINJAU THREADS ===");
   console.table(
     results.map((r) => ({
-      URL: r.url.length > 45 ? r.url.slice(0, 42) + "..." : r.url,
-      Status: r.status,
+      "URL Asal": r.urlAsal,
+      "Alamat Akhir (Host+Path)": r.alamatAkhir,
+      "Jml Redir": r.jumlahRedirect,
+      "og:title": r.hasOgTitle,
+      "og:desc": r.hasOgDesc,
+      "Status Akhir": r.statusAkhir,
       "Pjg Teks": r.panjangTeks,
-      "120 Karakter Pertama": r.snippet120,
-      Catatan: r.catatan,
+      "120 Karakter Cuplikan": r.snippet120,
     }))
   );
 }
