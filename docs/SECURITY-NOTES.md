@@ -3,7 +3,7 @@
 Tanggal Audit: 18 Oktober 2026  
 Status: Terverifikasi, Tidak Ada Kerentanan Kritis yang Terekspos ke Produksi
 
-Dokumen ini mencatat tinjauan menyeluruh terhadap hasil `npm audit` (dependensi produksi dan lingkungan pengembangan) serta analisis risiko untuk setiap paket. Sesuai panduan keamanan, perintah destruktif `npm audit fix --force` **tidak dijalankan** karena berpotensi merusak kompatibilitas dependensi tersemat (*breaking changes*).
+Dokumen ini mencatat tinjauan menyeluruh terhadap hasil `npm audit` (dependensi produksi dan lingkungan pengembangan) serta analisis risiko untuk setiap paket. Sesuai panduan keamanan, perintah destruktif `npm audit fix --force` **tidak dijalankan** karena berpotensi merusak kompatibilitas dependensi tersemat (*breaking changes*). Catatan: Semua nomor CVE dan skor CVSS eksternal yang tidak tercantum dalam luaran `npm audit` mentah telah dihapus; hanya ID GHSA resmi dari luaran audit yang dikutip.
 
 ---
 
@@ -19,8 +19,8 @@ Dokumen ini mencatat tinjauan menyeluruh terhadap hasil `npm audit` (dependensi 
 ## 2. Analisis Dependensi Produksi (`npm audit --omit=dev`)
 
 ### A. Paket `uuid` via `exceljs`
-- **Advisory ID**: GHSA-w5hq-g745-h8pq / CVE-2024-34351
-- **Tingkat Keparahan**: Moderate (CVSS 5.3)
+- **Advisory ID**: GHSA-w5hq-g745-h8pq
+- **Tingkat Keparahan**: Moderate
 - **Jalur Ketergantungan**: `exceljs` -> `uuid@^8.3.2`
 - **Deskripsi Kerentanan**:
   *Missing buffer bounds check in v3/v5/v6 when buf is provided*. Kerentanan terjadi bila fungsi UUID dipanggil dengan menyediakan buffer eksternal (`buf`) yang tidak divalidasi batas ukurannya.
@@ -40,9 +40,25 @@ Dokumen ini mencatat tinjauan menyeluruh terhadap hasil `npm audit` (dependensi 
 
 ---
 
-### B. Paket `postcss` via `next` (Internal Runtime)
+### B. Bukti Verifikasi Pemanggilan UUID pada ExcelJS
+Berikut adalah keluaran mentah perintah `grep -rn "uuid" node_modules/exceljs/lib | head -20`:
+
+```text
+node_modules/exceljs/lib/xlsx/xform/sheet/cf-ext/cf-rule-ext-xform.js:1:const {v4: uuidv4} = require('uuid');
+node_modules/exceljs/lib/xlsx/xform/sheet/cf-ext/cf-rule-ext-xform.js:43:      model.x14Id = `{${uuidv4()}}`.toUpperCase();
+node_modules/exceljs/lib/xlsx/xform/sheet/cf-ext/cf-rule-ext-xform.js:77:      id: model.x14Id || `{${uuidv4()}}`,
+```
+
+Keluaran di atas membuktikan secara faktual bahwa:
+1. ExcelJS hanya mengimpor `uuidv4` (versi 4).
+2. Pemanggilan `uuidv4()` pada baris 43 dan baris 77 dipanggil dengan **0 argumen** (tanpa parameter buffer `buf`).
+3. Kerentanan `GHSA-w5hq-g745-h8pq` (*Missing buffer bounds check in v3/v5/v6 when buf is provided*) secara teknis tidak dapat dipicu atau dieksploitasi oleh pustaka ExcelJS.
+
+---
+
+### C. Paket `postcss` via `next` (Internal Runtime)
 - **Advisory ID**: GHSA-qx2v-qp2m-jg93, GHSA-6g55-p6wh-862q, GHSA-fxqj-rqcc-2cmp, GHSA-r28c-9q8g-f849
-- **Tingkat Keparahan**: High (CVSS 7.5)
+- **Tingkat Keparahan**: High
 - **Jalur Ketergantungan**: `next@15.5.28` -> `postcss@8.5.22`
 - **Deskripsi Kerentanan**:
   XSS melalui unescaped tag `</style>` pada keluaran stringify CSS dan kebocoran informasi melalui manipulasi parameter `sourceMappingURL` pada komentar CSS.
@@ -75,4 +91,4 @@ Seluruh temuan pada dependensi dev hanya dieksekusi di workstation developer ata
 1. **Larangan `npm audit fix --force`**:
    Opsi `--force` secara paksa akan memasang paket versi mayor yang tidak kompatibel (mis. Tailwind v4 yang mengubah seluruh skema konfigurasi CSS, Next 16 yang mengubah API Async Request/Cookies, dan versi usang exceljs 3.4.0). Hal ini dilarang keras demi menjaga stabilitas sistem.
 2. **Pustaka Manipulasi Berkas Excel**:
-   Paket lama `xlsx 0.18.5` (SheetJS) yang memiliki kerentanan Prototype Pollution (CVE-2023-30533) dan ReDoS (CVE-2024-22363) telah **dihapus permanen** dan digantikan dengan `exceljs 4.4.0` yang aman dan terawat aktif.
+   Paket lama `xlsx 0.18.5` (SheetJS) yang memiliki kerentanan Prototype Pollution dan ReDoS telah **dihapus permanen** dan digantikan dengan `exceljs 4.4.0` yang aman dan terawat aktif.
