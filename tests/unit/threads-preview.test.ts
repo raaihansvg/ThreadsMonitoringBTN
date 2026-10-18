@@ -1,0 +1,224 @@
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import {
+  fetchThreadsPreview,
+  decodeHtmlEntities,
+} from "@/lib/ingest/threadsPreview";
+import {
+  isPreviewEnabled,
+  isCircuitBreakerActive,
+  triggerCircuitBreaker,
+  resetCircuitBreaker,
+  checkPreviewRateLimit,
+  recordPreviewAttempt,
+  resetPreviewRateLimits,
+  PREVIEW_FALLBACK_TEXT,
+} from "@/lib/ingest/previewLimiter";
+
+describe("FR-02: threadsPreview Unit Tests (Tahap 3A)", () => {
+  const originalFetch = global.fetch;
+
+  beforeEach(() => {
+    vi.restoreAllMocks();
+    resetCircuitBreaker();
+    resetPreviewRateLimits();
+  });
+
+  afterEach(() => {
+    global.fetch = originalFetch;
+  });
+
+  describe("decodeHtmlEntities", () => {
+    it("mendekode entitas heksadesimal, desimal, dan entitas bernama dengan benar", () => {
+      const raw =
+        "Jakarta, SonaIndonesia.com &#x2013; PT Bank Tabungan Negara &amp; Kawan&#xb2; &#064;btn &quot;Mobile&quot; &#x1f606;";
+      const decoded = decodeHtmlEntities(raw);
+
+      expect(decoded).toContain("–"); // &#x2013;
+      expect(decoded).toContain("&"); // &amp;
+      expect(decoded).toContain("²"); // &#xb2;
+      expect(decoded).toContain("@btn"); // &#064;
+      expect(decoded).toContain('"Mobile"'); // &quot;
+      expect(decoded).toContain("😆"); // &#x1f606;
+    });
+
+    it("mengembalikan string kosong jika input kosong", () => {
+      expect(decodeHtmlEntities("")).toBe("");
+    });
+  });
+
+  describe("fetchThreadsPreview dengan Mock Fetch", () => {
+    it("berhasil mengekstrak og:description dan mendekode entitas HTML", async () => {
+      const mockHtml = `
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <title>Threads</title>
+            <meta property="og:title" content="Abaikan Title Ini" />
+            <meta property="og:description" content="Pelayanan teller Kantor Cabang BTN sangat ramah &amp; cepat. Terima kasih &#064;bankbtn! &#x1f44d;" />
+          </head>
+          <body><div>Content</div></body>
+        </html>
+      `;
+
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        text: () => Promise.resolve(mockHtml),
+        headers: new Headers(),
+      } as any);
+
+      const res = await fetchThreadsPreview(
+        "https://www.threads.com/@nasabah/post/12345"
+      );
+
+      expect(res.ok).toBe(true);
+      expect(res.text).toBe(
+        "Pelayanan teller Kantor Cabang BTN sangat ramah & cepat. Terima kasih @bankbtn! 👍"
+      );
+      expect(res.canonicalUrl).toBe("https://threads.net/@nasabah/post/12345");
+      expect(res.isTruncated).toBe(false);
+      // Memastikan tidak menyimpan og:title
+      expect(res.text).not.toContain("Abaikan Title Ini");
+    });
+
+    it("menandai isTruncated jika teks berakhiran elipsis atau panjang >= 480 karakter", async () => {
+      const longText = "A".repeat(485);
+      const mockHtml = `<meta property="og:description" content="${longText}..." />`;
+
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        text: () => Promise.resolve(mockHtml),
+        headers: new Headers(),
+      } as any);
+
+      const res = await fetchThreadsPreview(
+        "https://www.threads.net/@user/post/999"
+      );
+      expect(res.ok).toBe(true);
+      expect(res.isTruncated).toBe(true);
+    });
+
+    it("menolak redirect ke host selain Threads (SSRF Protection)", async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        status: 302,
+        headers: new Headers({
+          location: "https://evil-attacker.com/steal-data",
+        }),
+      } as any);
+
+      const res = await fetchThreadsPreview("https://threads.net/share/XYZ");
+      expect(res.ok).toBe(false);
+      expect(res.error).toContain("Target redirect ditolak");
+    });
+
+    it("menolak teks yang menyerupai halaman login wall Threads", async () => {
+      const loginHtml = `
+        <meta property="og:description" content="Join Threads to share ideas, ask questions, post random thoughts, find your people and more. Log in with your Instagram." />
+      `;
+
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        text: () => Promise.resolve(loginHtml),
+        headers: new Headers(),
+      } as any);
+
+      const res = await fetchThreadsPreview(
+        "https://www.threads.net/@user/post/111"
+      );
+      expect(res.ok).toBe(false);
+      expect(res.text).toBe("");
+      expect(res.error).toContain("halaman login Threads");
+    });
+
+    it("mengembalikan status 403 atau 429 tanpa crash", async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: false,
+        status: 429,
+        headers: new Headers(),
+        text: () => Promise.resolve("Too Many Requests"),
+      } as any);
+
+      const res = await fetchThreadsPreview(
+        "https://www.threads.net/@user/post/222"
+      );
+      expect(res.ok).toBe(false);
+      expect(res.statusCode).toBe(429);
+      expect(res.error).toContain("429");
+    });
+
+    it("membatasi pembacaan HTML maksimal 1 MB", async () => {
+      // 1.5 MB string
+      const hugeHtml =
+        `<meta property="og:description" content="Teks valid" />` +
+        "B".repeat(1.5 * 1024 * 1024);
+
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        text: () => Promise.resolve(hugeHtml),
+        headers: new Headers(),
+      } as any);
+
+      const res = await fetchThreadsPreview(
+        "https://www.threads.net/@user/post/333"
+      );
+      expect(res.ok).toBe(true);
+      expect(res.text).toBe("Teks valid");
+    });
+  });
+
+  describe("Circuit Breaker & Rate Limiter (previewLimiter)", () => {
+    it("memicu circuit breaker selama 15 menit jika menerima status 403 atau 429", () => {
+      expect(isCircuitBreakerActive().active).toBe(false);
+
+      triggerCircuitBreaker(429);
+
+      const activeStatus = isCircuitBreakerActive();
+      expect(activeStatus.active).toBe(true);
+      expect(activeStatus.remainingSeconds).toBeGreaterThan(0);
+      expect(activeStatus.reason).toContain("429");
+
+      resetCircuitBreaker();
+      expect(isCircuitBreakerActive().active).toBe(false);
+    });
+
+    it("membatasi frekuensi maksimal 10 permintaan per menit per sesi", () => {
+      const sessionId = "session-officer-1";
+
+      for (let i = 0; i < 10; i++) {
+        const check = checkPreviewRateLimit(sessionId);
+        expect(check.allowed).toBe(true);
+        recordPreviewAttempt(sessionId);
+      }
+
+      // Percobaan ke-11 harus ditolak
+      const eleventh = checkPreviewRateLimit(sessionId);
+      expect(eleventh.allowed).toBe(false);
+      expect(eleventh.error).toContain("10/menit");
+    });
+
+    it("membatasi frekuensi maksimal 60 permintaan per jam global", () => {
+      // Rekam 60 request dari berbagai sesi
+      for (let i = 0; i < 60; i++) {
+        recordPreviewAttempt(`session-${i}`);
+      }
+
+      // Permintaan global ke-61 harus ditolak
+      const check = checkPreviewRateLimit("new-session");
+      expect(check.allowed).toBe(false);
+      expect(check.error).toContain("60/jam");
+    });
+
+    it("menghormati flag PREVIEW_ENABLED", () => {
+      process.env.PREVIEW_ENABLED = "false";
+      expect(isPreviewEnabled()).toBe(false);
+
+      process.env.PREVIEW_ENABLED = "true";
+      expect(isPreviewEnabled()).toBe(true);
+
+      delete process.env.PREVIEW_ENABLED;
+    });
+  });
+});

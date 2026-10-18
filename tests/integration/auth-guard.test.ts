@@ -23,6 +23,7 @@ import {
   DELETE as topicsDelete,
 } from "@/app/api/topics/route";
 import { POST as sampleDataPost } from "@/app/api/sample-data/route";
+import { POST as previewPost } from "@/app/api/preview/route";
 
 describe("Audit Keamanan Sesi & Guard Terpusat requireOfficer (Tahap 1.5)", () => {
   const host = "localhost:3000";
@@ -178,6 +179,16 @@ describe("Audit Keamanan Sesi & Guard Terpusat requireOfficer (Tahap 1.5)", () =
       const res = await sampleDataPost(req);
       expect([401, 403]).toContain(res.status);
     });
+
+    it("POST /api/preview menolak tanpa cookie", async () => {
+      const req = new NextRequest(`${baseUrl}/api/preview`, {
+        method: "POST",
+        headers: { host, "content-type": "application/json" },
+        body: JSON.stringify({ url: "https://www.threads.net/@user/post/123" }),
+      });
+      const res = await previewPost(req);
+      expect([401, 403]).toContain(res.status);
+    });
   });
 
   describe("Semua Route Tulis Menolak Cookie Statis Lama 'authenticated'", () => {
@@ -266,6 +277,16 @@ describe("Audit Keamanan Sesi & Guard Terpusat requireOfficer (Tahap 1.5)", () =
         body: JSON.stringify({ action: "clear" }),
       });
       const res = await sampleDataPost(req);
+      expect([401, 403]).toContain(res.status);
+    });
+
+    it("POST /api/preview menolak cookie lama", async () => {
+      const req = new NextRequest(`${baseUrl}/api/preview`, {
+        method: "POST",
+        headers: makeLegacyCookieHeader(),
+        body: JSON.stringify({ url: "https://www.threads.net/@user/post/123" }),
+      });
+      const res = await previewPost(req);
       expect([401, 403]).toContain(res.status);
     });
   });
