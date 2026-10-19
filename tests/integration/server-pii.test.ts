@@ -109,7 +109,9 @@ describe("Validasi Payload Zod & Penyamaran PII di Server (Tahap 1.6)", () => {
       (prisma.mention.findUnique as any).mockResolvedValue({
         id: "draft-123",
         status: "DRAF",
+        teksPostingan: "Teks postingan draf awal seputar BTN.",
       });
+
       (prisma.mention.update as any).mockImplementation((args: any) => {
         return Promise.resolve({
           id: args.where.id,

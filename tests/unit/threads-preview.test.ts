@@ -170,43 +170,43 @@ describe("FR-02: threadsPreview Unit Tests (Tahap 3A)", () => {
   });
 
   describe("Circuit Breaker & Rate Limiter (previewLimiter)", () => {
-    it("memicu circuit breaker selama 15 menit jika menerima status 403 atau 429", () => {
-      expect(isCircuitBreakerActive().active).toBe(false);
+    it("memicu circuit breaker selama 15 menit jika menerima status 403 atau 429", async () => {
+      expect((await isCircuitBreakerActive()).active).toBe(false);
 
-      triggerCircuitBreaker(429);
+      await triggerCircuitBreaker(429);
 
-      const activeStatus = isCircuitBreakerActive();
+      const activeStatus = await isCircuitBreakerActive();
       expect(activeStatus.active).toBe(true);
       expect(activeStatus.remainingSeconds).toBeGreaterThan(0);
       expect(activeStatus.reason).toContain("429");
 
-      resetCircuitBreaker();
-      expect(isCircuitBreakerActive().active).toBe(false);
+      await resetCircuitBreaker();
+      expect((await isCircuitBreakerActive()).active).toBe(false);
     });
 
-    it("membatasi frekuensi maksimal 10 permintaan per menit per sesi", () => {
+    it("membatasi frekuensi maksimal 10 permintaan per menit per sesi", async () => {
       const sessionId = "session-officer-1";
 
       for (let i = 0; i < 10; i++) {
-        const check = checkPreviewRateLimit(sessionId);
+        const check = await checkPreviewRateLimit(sessionId);
         expect(check.allowed).toBe(true);
-        recordPreviewAttempt(sessionId);
+        await recordPreviewAttempt(sessionId);
       }
 
       // Percobaan ke-11 harus ditolak
-      const eleventh = checkPreviewRateLimit(sessionId);
+      const eleventh = await checkPreviewRateLimit(sessionId);
       expect(eleventh.allowed).toBe(false);
       expect(eleventh.error).toContain("10/menit");
     });
 
-    it("membatasi frekuensi maksimal 60 permintaan per jam global", () => {
+    it("membatasi frekuensi maksimal 60 permintaan per jam global", async () => {
       // Rekam 60 request dari berbagai sesi
       for (let i = 0; i < 60; i++) {
-        recordPreviewAttempt(`session-${i}`);
+        await recordPreviewAttempt(`session-${i}`);
       }
 
       // Permintaan global ke-61 harus ditolak
-      const check = checkPreviewRateLimit("new-session");
+      const check = await checkPreviewRateLimit("new-session");
       expect(check.allowed).toBe(false);
       expect(check.error).toContain("60/jam");
     });
