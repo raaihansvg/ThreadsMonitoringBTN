@@ -155,13 +155,30 @@ Aplikasi menyediakan fitur pengambilan pratinjau teks postingan Threads publik s
 - **Batas Unduhan & Waktu**: Batas waktu (*timeout*) 8 detik per permintaan dan batas ukuran respon maksimal 1 MB untuk mencegah eksploitasi Denial-of-Service.
 - **Pemicu Eksplisit**: Pengambilan pratinjau hanya dipicu satu kali per klik tombol eksplisit oleh petugas yang telah terotentikasi (`requireOfficer`), bukan otomatis pada saat halaman dimuat atau secara massal (*bulk*).
 
-### 3. Batas Frekuensi & Circuit Breaker
+### 3. Batas Frekuensi & Circuit Breaker (Database-Backed)
 - **Batas Sesi**: Maksimal 10 permintaan pratinjau per menit per sesi petugas.
 - **Batas Global**: Maksimal 60 permintaan pratinjau per jam di seluruh sistem.
 - **Circuit Breaker**: Jika server Threads merespons dengan status HTTP `403` (Forbidden) atau `429` (Too Many Requests), sistem secara otomatis menghentikan (*pause*) seluruh permintaan pratinjau keluar selama **15 menit** demi melindungi IP server dan mematuhi batasan penyedia.
+- **Persistensi Serverless**: Seluruh state pembatas frekuensi dan jeda circuit breaker disimpan secara persisten di tabel basis data `PreviewLimitState` dengan fallback in-memory, sehingga bekerja konsisten di lingkungan multi-instance maupun arsitektur *serverless* (AWS Lambda, Vercel, Google Cloud Run) tanpa kehilangan status antar proses.
 
 ### 4. Kill Switch & Kepatuhan Produksi (`PREVIEW_ENABLED`)
 - Fitur ini dikontrol melalui variabel lingkungan `PREVIEW_ENABLED`.
 - Secara default, fitur aktif (`true`) di lingkungan pengembangan (*development*) dan pengujian (*test*), namun **dinonaktifkan secara bawaan (`false`) di lingkungan produksi**.
 - Bila dinonaktifkan, endpoint API langsung merespons dengan pesan fallback (*"Teks tidak dapat diambil otomatis. Tempel teks postingan."*) tanpa melakukan kontak jaringan ke Threads sama sekali.
 - **PERINGATAN KEPATUHAN**: Sebelum mengaktifkan `PREVIEW_ENABLED=true` di lingkungan produksi, kepatuhan teknis terhadap ketentuan layanan Meta/Threads harus dikaji dan disetujui secara resmi oleh penasihat hukum (*legal counsel*) atau tim kepatuhan (*compliance team*) organisasi.
+
+### 5. Penanganan Tautan `/share/` Tanpa Pratinjau (FR-01, FR-07, Tahap 3B)
+- Jika Petugas menyimpan tautan `/share/<id>` tanpa melalui pratinjau (misalnya ketika `PREVIEW_ENABLED=false` atau pratinjau dilewati), sistem menyimpan tautan asli apa adanya di kolom `linkAsli`.
+- Sistem **TIDAK melakukan permintaan jaringan** apa pun ke Threads untuk mencari URL kanonikal postingan tersebut.
+- Entri ditandai dengan `statusKanonik: "BELUM_DIKETAHUI"` dan menampilkan lencana peringatan *"Kanonik belum diketahui"* di antarmuka Draf dan Mention.
+
+### 6. Kebijakan Draf Tanpa Teks (FR-10, FR-11, Tahap 3B)
+- Postingan yang diimpor hanya dengan URL (tanpa teks) disimpan dengan status `DRAF`.
+- Draf tanpa teks **TIDAK dianalisis** (topik `null`, sentimen `NETRAL`, prioritas `RUTIN`, headline dan ringkasan kosong, tanpa penyedia analisis).
+- Draf tanpa teks **TIDAK DAPAT DISETUJUI** ke Dashboard (`POST /api/drafts` dengan aksi `approve` ditolak) sebelum Petugas menyunting dan mengisi teks postingan yang sah.
+- Tidak ada teks *placeholder* tiruan yang diizinkan masuk ke Dashboard maupun laporan ekspor (FR-17).
+
+### 7. Tempel Banyak & Batas Impor Seragam 50 Item (FR-10, Tahap 3B)
+- Format tempel banyak (`tautan | teks`) diurai dengan memecah **HANYA** pada tanda pipa (`|`) pertama, sehingga karakter `|` berikutnya di dalam isi postingan tetap utuh sebagai bagian teks.
+- Batas impor diseragamkan menjadi **maksimal 50 item** di seluruh lapisan aplikasi (antarmuka UI `ModalImpor`, skema validasi `importBatchSchema`, dan rute API).
+
