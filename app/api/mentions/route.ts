@@ -166,12 +166,23 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Pakai alamat kanonik /@akun/post/<id> (tanpa query) jika ada dari hasil pratinjau redirect
+    // Status kanonik (Tahap 3B):
+    // Bila tautan /share/ tanpa pratinjau, simpan tautan asli apa adanya,
+    // tandai "BELUM_DIKETAHUI", dan JANGAN melakukan permintaan jaringan untuk mencarinya.
+    const isShareLink =
+      linkAsli.includes("/share/") ||
+      (urlCheck.normalizedUrl && urlCheck.normalizedUrl.includes("/share/"));
+
     let cleanUrl = urlCheck.normalizedUrl;
+    let statusKanonik = isShareLink ? "BELUM_DIKETAHUI" : "DIKETAHUI";
+
     if (parsed.data.linkTernormalisasi) {
       const canonCheck = validateThreadsUrl(parsed.data.linkTernormalisasi);
       if (canonCheck.valid && canonCheck.normalizedUrl) {
         cleanUrl = canonCheck.normalizedUrl;
+        if (cleanUrl.includes("/post/")) {
+          statusKanonik = "DIKETAHUI";
+        }
       }
     }
 
@@ -191,32 +202,54 @@ export async function POST(req: NextRequest) {
     }
 
     // AC-05: Penyamaran PII DI SERVER (Server-Side Sanitization)
-    const { maskedText: safeText } = maskPii(teksPostingan);
-    const { maskedText: safeHeadline } = maskPii(
-      headline || safeText.slice(0, 80)
-    );
-    const { maskedText: safeRingkasan } = maskPii(
-      ringkasan || safeText.slice(0, 300)
-    );
+    const rawText = (teksPostingan || "").trim();
+    const { maskedText: safeText } = maskPii(rawText);
+    const isEmptyText = safeText.trim().length === 0;
 
-    // Aturan Penentuan Topik Otomatis jika topik belum dipilih atau "Lainnya"
-    const finalTopik =
-      topik &&
-      topik !== "Lainnya" &&
-      topik !== "Semua" &&
-      topik !== "Semua Topik"
-        ? topik
-        : selectTopic(safeText);
+    let finalTopik: string | null = null;
+    let safeHeadline = "";
+    let safeRingkasan = "";
+    let finalSentimen = sentimen || Sentiment.NETRAL;
+    let finalPrioritas = prioritas || Priority.RUTIN;
+    let finalKataKunci: string[] = [];
+    let finalPenyedia: string | null = null;
 
-    // Aturan Otentikasi & Status (Tahap 1.7):
-    // Permintaan yang diautentikasi lewat Bearer token (ekstensi) HARUS dipaksa
-    // status=DRAF dan sumberInput=EKSTENSI di server, mengabaikan nilai payload (FR-09 & AC-06)
+    // Tahap 3B: Draf tanpa teks TIDAK dianalisis
+    if (!isEmptyText) {
+      safeHeadline = maskPii(
+        headline || safeText.slice(0, 80)
+      ).maskedText.slice(0, 100);
+      safeRingkasan = maskPii(
+        ringkasan || safeText.slice(0, 300)
+      ).maskedText.slice(0, 400);
+
+      // Aturan Penentuan Topik Otomatis jika topik belum dipilih atau "Lainnya"
+      finalTopik =
+        topik &&
+        topik !== "Lainnya" &&
+        topik !== "Semua" &&
+        topik !== "Semua Topik"
+          ? topik
+          : selectTopic(safeText);
+
+      finalSentimen = sentimen || Sentiment.NETRAL;
+      finalPrioritas = prioritas || Priority.RUTIN;
+      finalKataKunci = Array.isArray(kataKunci) ? kataKunci : [];
+      finalPenyedia = penyediaAnalisis || "manual";
+    }
+
+    // Aturan Otentikasi & Status (Tahap 1.7 & Tahap 3B):
+    // 1. Permintaan via Bearer (ekstensi) HARUS dipaksa status=DRAF & sumber=EKSTENSI
+    // 2. Draf tanpa teks (impor tunggal/massal) WAJIB status=DRAF
     let targetStatus: MentionStatus;
     let targetSumber: InputSourceType;
 
     if (isBearer) {
       targetStatus = MentionStatus.DRAF;
       targetSumber = InputSourceType.EKSTENSI;
+    } else if (isEmptyText) {
+      targetStatus = MentionStatus.DRAF;
+      targetSumber = sumberInput || InputSourceType.FORM;
     } else {
       const isDraftSource =
         sumberInput === InputSourceType.IMPOR ||
@@ -230,16 +263,17 @@ export async function POST(req: NextRequest) {
       data: {
         linkAsli,
         linkTernormalisasi: cleanUrl,
+        statusKanonik,
         teksPostingan: safeText,
         sumberInput: targetSumber,
         topik: finalTopik,
-        sentimen: sentimen || Sentiment.NETRAL,
-        prioritas: prioritas || Priority.RUTIN,
+        sentimen: finalSentimen,
+        prioritas: finalPrioritas,
         status: targetStatus,
-        headline: safeHeadline.slice(0, 100),
-        ringkasan: safeRingkasan.slice(0, 400),
-        kataKunci: Array.isArray(kataKunci) ? kataKunci : [],
-        penyediaAnalisis: penyediaAnalisis || "manual",
+        headline: safeHeadline,
+        ringkasan: safeRingkasan,
+        kataKunci: finalKataKunci,
+        penyediaAnalisis: finalPenyedia,
       },
     });
 

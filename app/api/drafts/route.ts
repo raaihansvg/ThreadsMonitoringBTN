@@ -62,7 +62,41 @@ export async function POST(req: NextRequest) {
     const { id, action, edits } = parsed.data;
 
     if (action === "approve") {
-      const sanitizedEdits: Record<string, unknown> = {};
+      const draft = await prisma.mention.findUnique({
+        where: { id },
+      });
+
+      if (!draft) {
+        return NextResponse.json(
+          { ok: false, error: "Draf tidak ditemukan." },
+          { status: 404 }
+        );
+      }
+
+      // Pastikan teks postingan terisi (baik dari draf asli maupun dari suntingan petugas)
+      const rawEffectiveText = (
+        edits?.teksPostingan !== undefined
+          ? edits.teksPostingan
+          : draft.teksPostingan
+      )?.trim();
+
+      if (!rawEffectiveText) {
+        return NextResponse.json(
+          {
+            ok: false,
+            error:
+              "Draf tanpa teks tidak dapat disetujui sebelum teks postingan diisi oleh petugas.",
+          },
+          { status: 400 }
+        );
+      }
+
+      const { maskedText: safeText } = maskPii(rawEffectiveText);
+
+      const sanitizedEdits: Record<string, unknown> = {
+        teksPostingan: safeText.slice(0, 5000),
+      };
+
       if (edits) {
         if (edits.topik) sanitizedEdits.topik = edits.topik;
         if (edits.sentimen) sanitizedEdits.sentimen = edits.sentimen;
@@ -79,11 +113,14 @@ export async function POST(req: NextRequest) {
             400
           );
         }
-        if (edits.teksPostingan) {
-          sanitizedEdits.teksPostingan = maskPii(
-            edits.teksPostingan
-          ).maskedText.slice(0, 5000);
-        }
+      }
+
+      // Bila headline/ringkasan masih kosong setelah teks diisi, turunkan secara otomatis
+      if (!sanitizedEdits.headline && !draft.headline) {
+        sanitizedEdits.headline = safeText.slice(0, 80);
+      }
+      if (!sanitizedEdits.ringkasan && !draft.ringkasan) {
+        sanitizedEdits.ringkasan = safeText.slice(0, 300);
       }
 
       const updated = await prisma.mention.update({

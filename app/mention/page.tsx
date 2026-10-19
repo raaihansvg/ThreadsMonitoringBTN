@@ -26,6 +26,7 @@ interface Mention {
   headline: string | null;
   ringkasan: string | null;
   kataKunci: string[];
+  statusKanonik?: string;
 }
 
 function MentionPageContent() {
@@ -326,6 +327,13 @@ function MentionPageContent() {
                     {m.sumberInput === "CONTOH" && (
                       <span className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-0.5 text-xs font-bold text-amber-700">
                         Contoh
+                      </span>
+                    )}
+
+                    {/* Pill Status Kanonik */}
+                    {m.statusKanonik === "BELUM_DIKETAHUI" && (
+                      <span className="rounded-full border border-amber-300 bg-amber-50 px-2.5 py-0.5 text-xs font-bold text-amber-800">
+                        Kanonik belum diketahui
                       </span>
                     )}
 

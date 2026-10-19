@@ -23,6 +23,7 @@ interface DraftMention {
   headline: string | null;
   ringkasan: string | null;
   kataKunci: string[];
+  statusKanonik?: string;
 }
 
 export default function DraftPage() {
@@ -32,6 +33,7 @@ export default function DraftPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
 
   // Edit draft form state
+  const [editTeksPostingan, setEditTeksPostingan] = useState("");
   const [editHeadline, setEditHeadline] = useState("");
   const [editRingkasan, setEditRingkasan] = useState("");
   const [editTopik, setEditTopik] = useState("");
@@ -83,6 +85,7 @@ export default function DraftPage() {
       setEditingId(null);
     } else {
       setEditingId(d.id);
+      setEditTeksPostingan(d.teksPostingan || "");
       setEditHeadline(d.headline || "");
       setEditRingkasan(d.ringkasan || "");
       setEditTopik(d.topik || "Lainnya");
@@ -102,6 +105,19 @@ export default function DraftPage() {
       }
     }
 
+    if (action === "approve") {
+      const targetDraft = drafts.find((d) => d.id === id);
+      const effectiveText = withEdits
+        ? editTeksPostingan
+        : targetDraft?.teksPostingan;
+      if (!effectiveText || effectiveText.trim() === "") {
+        alert(
+          "Draf tanpa teks tidak dapat disetujui. Silakan klik 'Edit Analisis' dan isi teks postingan terlebih dahulu."
+        );
+        return;
+      }
+    }
+
     const payload: {
       id: string;
       action: "approve" | "reject";
@@ -110,6 +126,7 @@ export default function DraftPage() {
 
     if (withEdits) {
       payload.edits = {
+        teksPostingan: editTeksPostingan.slice(0, 5000),
         headline: editHeadline.slice(0, 100),
         ringkasan: editRingkasan.slice(0, 400),
         topik: editTopik,
@@ -180,6 +197,16 @@ export default function DraftPage() {
                     <span className="text-xs font-semibold text-slate-500">
                       {d.topik || "Lainnya"}
                     </span>
+                    {d.statusKanonik === "BELUM_DIKETAHUI" && (
+                      <span className="rounded-full border border-amber-300 bg-amber-50 px-2.5 py-0.5 text-xs font-bold text-amber-800">
+                        Kanonik belum diketahui
+                      </span>
+                    )}
+                    {(!d.teksPostingan || d.teksPostingan.trim() === "") && (
+                      <span className="rounded-full border border-rose-300 bg-rose-50 px-2.5 py-0.5 text-xs font-bold text-[#C10010]">
+                        Teks belum diisi (Wajib diisi sebelum disetujui)
+                      </span>
+                    )}
                   </div>
 
                   <a
@@ -306,11 +333,38 @@ export default function DraftPage() {
                         className="mt-1 w-full rounded-xl border border-slate-200 bg-white p-2 text-xs text-slate-800 focus:outline-none"
                       />
                     </div>
+
+                    <div>
+                      <div className="flex justify-between">
+                        <label className="font-bold text-slate-700">
+                          Teks Postingan{" "}
+                          <span className="text-[#C10010]">*</span>
+                        </label>
+                        <span className="text-xs text-[#5A6A7E]">
+                          {editTeksPostingan.length}/5000
+                        </span>
+                      </div>
+                      <textarea
+                        rows={3}
+                        maxLength={5000}
+                        value={editTeksPostingan}
+                        onChange={(e) => setEditTeksPostingan(e.target.value)}
+                        placeholder="Wajib isi teks postingan Threads sebelum menyetujui draf..."
+                        className="mt-1 w-full rounded-xl border border-slate-200 bg-white p-2 text-xs text-slate-800 focus:outline-none"
+                      />
+                    </div>
                   </div>
                 )}
 
                 <div className="rounded-xl border border-slate-100 bg-[#F4F7FB] p-3 text-xs italic text-slate-600">
-                  &ldquo;{d.teksPostingan}&rdquo;
+                  {d.teksPostingan && d.teksPostingan.trim() ? (
+                    <>&ldquo;{d.teksPostingan}&rdquo;</>
+                  ) : (
+                    <span className="font-medium not-italic text-rose-500">
+                      (Teks postingan belum diisi. Petugas wajib mengisi teks
+                      sebelum menyetujui draf.)
+                    </span>
+                  )}
                 </div>
 
                 {role === "petugas" && (
