@@ -42,6 +42,7 @@ function MentionPageContent() {
 
   // Filters
   const [search, setSearch] = useState("");
+  const [idFilter, setIdFilter] = useState("");
   const [topik, setTopik] = useState("Semua");
   const [sentimen, setSentimen] = useState("");
   const [prioritas, setPrioritas] = useState("");
@@ -53,9 +54,11 @@ function MentionPageContent() {
     const qTopik = searchParams.get("topik");
     const qPrioritas = searchParams.get("prioritas");
     const qSearch = searchParams.get("search");
+    const qId = searchParams.get("id");
     if (qTopik) setTopik(qTopik);
     if (qPrioritas) setPrioritas(qPrioritas);
     if (qSearch) setSearch(qSearch);
+    if (qId) setIdFilter(qId);
   }, [searchParams]);
 
   useEffect(() => {
@@ -84,6 +87,10 @@ function MentionPageContent() {
       includeSample: String(showSampleData),
     });
 
+    if (idFilter) {
+      params.append("id", idFilter);
+    }
+
     fetch(`/api/mentions?${params.toString()}`)
       .then((res) => res.json())
       .then((data) => {
@@ -98,6 +105,7 @@ function MentionPageContent() {
   }, [
     page,
     search,
+    idFilter,
     topik,
     sentimen,
     prioritas,
@@ -144,6 +152,7 @@ function MentionPageContent() {
 
   const resetFilter = () => {
     setSearch("");
+    setIdFilter("");
     setTopik("Semua");
     setSentimen("");
     setPrioritas("");
@@ -229,6 +238,26 @@ function MentionPageContent() {
           </select>
         </div>
       </div>
+
+      {/* Banner Filter ID Spesifik (Buka Entri Lama) */}
+      {idFilter && (
+        <div className="flex items-center justify-between rounded-2xl border border-[#0055FF]/20 bg-[#EBF3FF] px-4 py-2.5 text-xs text-[#0055FF]">
+          <div className="flex items-center gap-2">
+            <span className="font-semibold">
+              Menampilkan entri spesifik dengan ID:
+            </span>
+            <code className="rounded bg-blue-100 px-1.5 py-0.5 font-mono text-[11px] font-bold">
+              {idFilter}
+            </code>
+          </div>
+          <button
+            onClick={() => setIdFilter("")}
+            className="font-bold underline hover:text-blue-800"
+          >
+            Tampilkan semua mention
+          </button>
+        </div>
+      )}
 
       {/* Ringkasan Jumlah Hasil */}
       <div className="flex items-center justify-between px-1">

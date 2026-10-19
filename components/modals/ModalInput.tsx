@@ -336,7 +336,7 @@ export function ModalInput() {
         setSubmitError(data.error || "Gagal menyimpan mention.");
       } else {
         setInputModalOpen(false);
-        showToast("Mention berhasil dicatat dan dipublikasikan.");
+        showToast("Mention berhasil dicatat.");
         triggerRefresh();
         // Reset formulir
         setUrl("");
@@ -511,7 +511,9 @@ export function ModalInput() {
                     type="button"
                     onClick={() => {
                       setInputModalOpen(false);
-                      window.location.href = `/mention?search=${encodeURIComponent(url.split("?")[0])}`;
+                      const targetUrl = url.split("?")[0];
+                      const existingId = duplicateEntry.id;
+                      window.location.href = `/mention?id=${encodeURIComponent(existingId)}&search=${encodeURIComponent(targetUrl)}`;
                     }}
                     className="flex items-center gap-1 rounded-full bg-[#0055FF] px-3 py-1 text-xs font-bold text-white hover:bg-blue-700"
                   >

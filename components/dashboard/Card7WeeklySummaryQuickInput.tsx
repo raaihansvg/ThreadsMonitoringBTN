@@ -99,8 +99,8 @@ export function Card7WeeklySummaryQuickInput({ weeklySummary }: Card7Props) {
             Belum ada data minggu ini
           </p>
           <p className="mt-0.5 text-[11px] text-slate-400">
-            Ringkasan akan otomatis terisi saat ada mention berstatus terbit
-            pada pekan ini.
+            Ringkasan akan otomatis terisi saat ada mention yang dicatat pada
+            pekan ini.
           </p>
         </div>
       )}
