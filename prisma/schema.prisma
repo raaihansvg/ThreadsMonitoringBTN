@@ -42,6 +42,7 @@ model Mention {
   id                 String          @id @default(cuid())
   linkAsli           String
   linkTernormalisasi String          @unique
+  statusKanonik      String          @default("DIKETAHUI") // "DIKETAHUI" | "BELUM_DIKETAHUI"
   teksPostingan      String          @db.Text
   sumberInput        InputSourceType
   tanggalDitemukan   DateTime        @default(now())
@@ -101,3 +102,13 @@ model AlertConfig {
   negativePercentage Float    @default(40.0)
   diubahPada         DateTime @updatedAt
 }
+
+model PreviewLimitState {
+  key          String     @id
+  tipe         String     // "CIRCUIT_BREAKER" | "RATE_LIMIT"
+  circuitUntil DateTime?
+  reason       String?
+  attempts     DateTime[]
+  diubahPada   DateTime   @updatedAt
+}
+
