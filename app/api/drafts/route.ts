@@ -4,6 +4,7 @@ import { MentionStatus, InputSourceType } from "@prisma/client";
 import { requireOfficer } from "@/lib/auth/session";
 import { draftActionSchema } from "@/lib/validation/schemas";
 import { maskPii } from "@/lib/pii";
+import { triggerAlertsForMention } from "@/lib/alert/service";
 
 export const dynamic = "force-dynamic";
 
@@ -131,6 +132,17 @@ export async function POST(req: NextRequest) {
           dikoreksiManual: true,
         },
       });
+
+      // Pemicu Alert Nyata untuk draf yang disetujui (Tahap 3D)
+      await triggerAlertsForMention({
+        id: updated.id,
+        topik: updated.topik,
+        prioritas: updated.prioritas,
+        sentimen: updated.sentimen,
+        sumberInput: updated.sumberInput,
+        tanggalDitemukan: updated.tanggalDitemukan,
+      });
+
       return NextResponse.json({
         ok: true,
         message: "Draf disetujui ke Dashboard.",

@@ -11,6 +11,7 @@ import { validateThreadsUrl } from "@/lib/url";
 import { maskPii } from "@/lib/pii";
 import { createMentionSchema } from "@/lib/validation/schemas";
 import { selectTopic } from "@/lib/analysis/topicSelector";
+import { triggerAlertsForMention } from "@/lib/alert/service";
 
 export const dynamic = "force-dynamic";
 
@@ -21,9 +22,20 @@ export async function GET(req: NextRequest) {
     // Endpoint cepat untuk cek duplikat URL
     const checkUrl = searchParams.get("checkUrl");
     if (checkUrl) {
-      const cleanUrl = checkUrl.trim().split("?")[0].replace("www.", "");
-      const existing = await prisma.mention.findUnique({
-        where: { linkTernormalisasi: cleanUrl },
+      const urlCheck = validateThreadsUrl(checkUrl);
+      const cleanUrl =
+        urlCheck.valid && urlCheck.normalizedUrl
+          ? urlCheck.normalizedUrl
+          : checkUrl.trim().split("?")[0].replace("www.", "");
+
+      const existing = await prisma.mention.findFirst({
+        where: {
+          OR: [
+            { linkTernormalisasi: cleanUrl },
+            { linkAsli: checkUrl.trim() },
+            { linkAsli: cleanUrl },
+          ],
+        },
         select: { id: true, headline: true, linkAsli: true },
       });
       return NextResponse.json({ exists: !!existing, mention: existing });
@@ -32,6 +44,7 @@ export async function GET(req: NextRequest) {
     const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10));
     const limit = Math.max(1, parseInt(searchParams.get("limit") || "20", 10));
     const search = searchParams.get("search")?.trim() || "";
+    const idParam = searchParams.get("id")?.trim();
     const topik = searchParams.get("topik")?.trim();
     const sentimen = searchParams.get("sentimen")?.trim() as
       | Sentiment
@@ -71,8 +84,18 @@ export async function GET(req: NextRequest) {
       where.tanggalDitemukan = dateFilter;
     }
 
+    if (idParam) {
+      where.id = idParam;
+      // Bila mencari entri spesifik via id, abaikan batasan tanggal dan status draf agar entri lama selalu ditemukan
+      delete where.status;
+      delete where.tanggalDitemukan;
+    }
+
     if (search) {
       where.OR = [
+        { id: search },
+        { linkAsli: { contains: search, mode: "insensitive" } },
+        { linkTernormalisasi: { contains: search, mode: "insensitive" } },
         { headline: { contains: search, mode: "insensitive" } },
         { ringkasan: { contains: search, mode: "insensitive" } },
         { teksPostingan: { contains: search, mode: "insensitive" } },
@@ -276,6 +299,18 @@ export async function POST(req: NextRequest) {
         penyediaAnalisis: finalPenyedia,
       },
     });
+
+    // Pemicu Alert Nyata (Tahap 3D): Deteksi lonjakan / perlu perhatian
+    if (newMention.status !== MentionStatus.DRAF) {
+      await triggerAlertsForMention({
+        id: newMention.id,
+        topik: newMention.topik,
+        prioritas: newMention.prioritas,
+        sentimen: newMention.sentimen,
+        sumberInput: newMention.sumberInput,
+        tanggalDitemukan: newMention.tanggalDitemukan,
+      });
+    }
 
     return NextResponse.json({ ok: true, mention: newMention });
   } catch (error) {
