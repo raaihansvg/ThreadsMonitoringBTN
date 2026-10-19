@@ -27,7 +27,7 @@ interface DraftMention {
 }
 
 export default function DraftPage() {
-  const { role, refreshTrigger, triggerRefresh } = useApp();
+  const { role, refreshTrigger, triggerRefresh, showSampleData } = useApp();
   const [drafts, setDrafts] = useState<DraftMention[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -69,7 +69,7 @@ export default function DraftPage() {
 
   useEffect(() => {
     setLoading(true);
-    fetch("/api/drafts")
+    fetch(`/api/drafts?includeSample=${showSampleData}`)
       .then((res) => res.json())
       .then((data) => {
         if (data.ok && Array.isArray(data.drafts)) {
@@ -78,7 +78,7 @@ export default function DraftPage() {
         setLoading(false);
       })
       .catch(() => setLoading(false));
-  }, [refreshTrigger]);
+  }, [refreshTrigger, showSampleData]);
 
   const startEdit = (d: DraftMention) => {
     if (editingId === d.id) {

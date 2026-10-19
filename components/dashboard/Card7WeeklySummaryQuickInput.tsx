@@ -8,23 +8,31 @@ interface Card7Props {
   weeklySummary: {
     headline: string;
     summary: string;
+    hasData?: boolean;
   };
 }
 
 export function Card7WeeklySummaryQuickInput({ weeklySummary }: Card7Props) {
-  const { role, openInputModal, setTokenModalOpen } = useApp();
+  const { role, openInputModal, setTokenModalOpen, showToast } = useApp();
   const [copied, setCopied] = useState(false);
   const [quickUrl, setQuickUrl] = useState("");
 
+  const hasData = Boolean(
+    weeklySummary?.hasData &&
+      (weeklySummary.headline?.trim() || weeklySummary.summary?.trim())
+  );
+
   const handleCopy = async () => {
+    if (!hasData) return;
     const textToCopy = `Headline Post:\n${weeklySummary.headline}\n\nSummary Post:\n${weeklySummary.summary}`;
     try {
       await navigator.clipboard.writeText(textToCopy);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      alert(
-        "Tersalin ke clipboard dalam format kolom Headline Post & Summary Post."
+      showToast(
+        "Tersalin ke clipboard dalam format kolom Headline Post & Summary Post.",
+        "info"
       );
     }
   };
@@ -54,7 +62,13 @@ export function Card7WeeklySummaryQuickInput({ weeklySummary }: Card7Props) {
         </div>
         <button
           onClick={handleCopy}
-          className="flex items-center gap-1.5 rounded-full bg-[#0A192F] px-3.5 py-2 text-xs font-bold text-white transition hover:bg-[#0055FF]"
+          disabled={!hasData}
+          className={`flex items-center gap-1.5 rounded-full px-3.5 py-2 text-xs font-bold transition ${
+            hasData
+              ? "bg-[#0A192F] text-white hover:bg-[#0055FF]"
+              : "cursor-not-allowed bg-slate-200 text-slate-400"
+          }`}
+          aria-label="Salin Ringkasan Mingguan"
         >
           {copied ? (
             <>
@@ -70,14 +84,26 @@ export function Card7WeeklySummaryQuickInput({ weeklySummary }: Card7Props) {
         </button>
       </div>
 
-      <div className="my-3 space-y-1.5 rounded-2xl border border-slate-200/60 bg-[#F4F7FB] p-3 text-xs">
-        <p className="truncate">
-          <strong>Headline:</strong> {weeklySummary.headline}
-        </p>
-        <p className="truncate text-[#5A6A7E]">
-          <strong>Summary:</strong> {weeklySummary.summary}
-        </p>
-      </div>
+      {hasData ? (
+        <div className="my-3 space-y-1.5 rounded-2xl border border-slate-200/60 bg-[#F4F7FB] p-3 text-xs">
+          <p className="truncate">
+            <strong>Headline:</strong> {weeklySummary.headline}
+          </p>
+          <p className="truncate text-[#5A6A7E]">
+            <strong>Summary:</strong> {weeklySummary.summary}
+          </p>
+        </div>
+      ) : (
+        <div className="my-3 flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-[#F4F7FB] p-4 text-center text-xs text-slate-500">
+          <p className="font-semibold text-slate-600">
+            Belum ada data minggu ini
+          </p>
+          <p className="mt-0.5 text-[11px] text-slate-400">
+            Ringkasan akan otomatis terisi saat ada mention berstatus terbit
+            pada pekan ini.
+          </p>
+        </div>
+      )}
 
       {/* Bar Input Cepat (Role-Aware) */}
       {role === "petugas" ? (

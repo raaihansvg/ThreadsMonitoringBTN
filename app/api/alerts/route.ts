@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { InputSourceType } from "@prisma/client";
 import { requireOfficer } from "@/lib/auth/session";
 import { updateAlertSchema } from "@/lib/validation/schemas";
 
@@ -9,8 +10,13 @@ export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
     const filter = searchParams.get("filter") || "all";
+    const includeSample = searchParams.get("includeSample") !== "false";
 
-    const where: Record<string, unknown> = {};
+    const where: Record<string, unknown> = {
+      ...(includeSample
+        ? {}
+        : { sumberInput: { not: InputSourceType.CONTOH } }),
+    };
     if (filter === "unread") {
       where.dibaca = false;
     }
