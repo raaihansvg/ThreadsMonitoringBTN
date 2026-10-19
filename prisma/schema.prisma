@@ -82,7 +82,7 @@ model Alert {
   jumlah        Int
   ambangDipakai Int?
   dibaca        Boolean         @default(false)
-  sumberInput   InputSourceType @default(CONTOH)
+  sumberInput   InputSourceType
   dibuatPada    DateTime        @default(now())
 }
 

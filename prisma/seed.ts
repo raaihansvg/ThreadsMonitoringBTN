@@ -517,6 +517,7 @@ async function main() {
         jumlah: 16,
         ambangDipakai: 10,
         dibaca: false,
+        sumberInput: InputSourceType.CONTOH,
         dibuatPada: subDays(3),
       },
       {
@@ -526,6 +527,7 @@ async function main() {
         jumlah: 4,
         ambangDipakai: DEFAULT_THRESHOLDS.negativeThreshold,
         dibaca: false,
+        sumberInput: InputSourceType.CONTOH,
         dibuatPada: now,
       },
       {
@@ -535,6 +537,7 @@ async function main() {
         jumlah: 3,
         ambangDipakai: DEFAULT_THRESHOLDS.negativeThreshold,
         dibaca: true,
+        sumberInput: InputSourceType.CONTOH,
         dibuatPada: subDays(2),
       },
     ],
