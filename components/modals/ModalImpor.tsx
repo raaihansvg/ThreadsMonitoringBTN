@@ -11,6 +11,7 @@ import {
   Download,
   ArrowRight,
 } from "lucide-react";
+import { parseBulkPaste, MAX_IMPORT_ITEMS } from "@/lib/ingest/parseImport";
 
 interface ProblemRow {
   line: number;
@@ -83,23 +84,19 @@ export function ModalImpor() {
       }
 
       try {
-        const text =
-          item.text?.trim() ||
-          "Impor massal postingan Threads terkait Bank BTN.";
+        // Tahap 3B: Jangan beri placeholder teks palsu pada draf tanpa teks!
+        const text = item.text?.trim() || "";
         const res = await fetch("/api/mentions", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             linkAsli: item.url.trim(),
             teksPostingan: text,
-            topik: "Lainnya",
-            sentimen: "NETRAL",
-            prioritas: "RUTIN",
             status: "DRAF",
             sumberInput: "IMPOR",
-            headline: text.slice(0, 80),
-            ringkasan: text.slice(0, 300),
-            kataKunci: ["impor", "massal"],
+            headline: text ? text.slice(0, 80) : "",
+            ringkasan: text ? text.slice(0, 300) : "",
+            kataKunci: text ? ["impor", "massal"] : [],
           }),
         });
 
@@ -142,18 +139,17 @@ export function ModalImpor() {
       return;
     }
 
-    const lines = pasteContent
-      .split("\n")
-      .map((l) => l.trim())
-      .filter(Boolean);
+    // Tahap 3B: Pecah HANYA pada tanda '|' pertama, sisanya tetap bagian teks. Batas seragam 50 item.
+    const { items, totalLines, isTruncated } = parseBulkPaste(
+      pasteContent,
+      MAX_IMPORT_ITEMS
+    );
 
-    const items = lines.map((line) => {
-      const parts = line.split("|");
-      return {
-        url: parts[0]?.trim() || "",
-        text: parts[1]?.trim(),
-      };
-    });
+    if (isTruncated) {
+      alert(
+        `Hanya ${MAX_IMPORT_ITEMS} item pertama dari total ${totalLines} baris yang akan diproses.`
+      );
+    }
 
     processItems(items);
   };
@@ -198,6 +194,12 @@ export function ModalImpor() {
       if (parsedItems.length === 0) {
         alert("Tidak ada baris data yang valid ditemukan dalam berkas CSV.");
         return;
+      }
+
+      if (parsedItems.length > MAX_IMPORT_ITEMS) {
+        alert(
+          `Hanya ${MAX_IMPORT_ITEMS} item pertama dari total ${parsedItems.length} baris CSV yang akan diproses.`
+        );
       }
 
       processItems(parsedItems);

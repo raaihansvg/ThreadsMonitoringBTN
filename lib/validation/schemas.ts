@@ -10,32 +10,48 @@ import {
  * Validasi Skema Payload untuk Semua Rute Tulis (Tahap 1.6)
  */
 
-export const createMentionSchema = z.object({
-  linkAsli: z
-    .string({ required_error: "Tautan Threads wajib diisi." })
-    .min(1, "Tautan Threads tidak boleh kosong.")
-    .max(2048, "Tautan terlalu panjang (maksimal 2048 karakter)."),
-  teksPostingan: z
-    .string({ required_error: "Teks postingan wajib diisi." })
-    .min(1, "Teks postingan tidak boleh kosong.")
-    .max(5000, "Teks postingan melebihi batas (maksimal 5000 karakter)."),
-  topik: z.string().max(100).optional(),
-  sentimen: z.nativeEnum(Sentiment).optional(),
-  prioritas: z.nativeEnum(Priority).optional(),
-  status: z.nativeEnum(MentionStatus).optional(),
-  headline: z
-    .string()
-    .max(100, "Panjang headline maksimal 100 karakter.")
-    .optional(),
-  ringkasan: z
-    .string()
-    .max(400, "Panjang ringkasan maksimal 400 karakter.")
-    .optional(),
-  kataKunci: z.array(z.string().max(50)).max(30).optional(),
-  penyediaAnalisis: z.string().max(50).optional(),
-  sumberInput: z.nativeEnum(InputSourceType).optional(),
-  linkTernormalisasi: z.string().max(2048).optional(),
-});
+export const createMentionSchema = z
+  .object({
+    linkAsli: z
+      .string({ required_error: "Tautan Threads wajib diisi." })
+      .min(1, "Tautan Threads tidak boleh kosong.")
+      .max(2048, "Tautan terlalu panjang (maksimal 2048 karakter)."),
+    teksPostingan: z
+      .string()
+      .max(5000, "Teks postingan melebihi batas (maksimal 5000 karakter).")
+      .default(""),
+    topik: z.string().max(100).optional(),
+    sentimen: z.nativeEnum(Sentiment).optional(),
+    prioritas: z.nativeEnum(Priority).optional(),
+    status: z.nativeEnum(MentionStatus).optional(),
+    headline: z
+      .string()
+      .max(100, "Panjang headline maksimal 100 karakter.")
+      .optional(),
+    ringkasan: z
+      .string()
+      .max(400, "Panjang ringkasan maksimal 400 karakter.")
+      .optional(),
+    kataKunci: z.array(z.string().max(50)).max(30).optional(),
+    penyediaAnalisis: z.string().max(50).optional(),
+    sumberInput: z.nativeEnum(InputSourceType).optional(),
+    linkTernormalisasi: z.string().max(2048).optional(),
+    statusKanonik: z.string().max(50).optional(),
+  })
+  .refine(
+    (data) => {
+      // Jika status diset ke selain DRAF (misalnya BARU, DIPANTAU, SELESAI), teks postingan wajib diisi
+      if (data.status && data.status !== MentionStatus.DRAF) {
+        return data.teksPostingan.trim().length > 0;
+      }
+      return true;
+    },
+    {
+      message:
+        "Teks postingan wajib diisi untuk mention yang langsung dipublikasikan.",
+      path: ["teksPostingan"],
+    }
+  );
 
 export const updateMentionSchema = z.object({
   status: z.nativeEnum(MentionStatus).optional(),
@@ -119,6 +135,6 @@ export const importBatchSchema = z
     })
   )
   .max(
-    100,
-    "Jumlah item impor melebihi batas (maksimal 100 item per transaksi)."
+    50,
+    "Jumlah item impor melebihi batas (maksimal 50 item per transaksi)."
   );
