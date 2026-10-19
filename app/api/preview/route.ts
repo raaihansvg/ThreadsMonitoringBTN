@@ -54,7 +54,7 @@ export async function POST(req: NextRequest) {
     }
 
     // 5. Periksa Status Circuit Breaker (jeda 15 menit jika ada blokir 403/429 sebelumnya)
-    const cbStatus = isCircuitBreakerActive();
+    const cbStatus = await isCircuitBreakerActive();
     if (cbStatus.active) {
       return NextResponse.json(
         {
@@ -73,7 +73,7 @@ export async function POST(req: NextRequest) {
       req.headers.get("x-forwarded-for") ||
       "petugas_default";
 
-    const rateLimitCheck = checkPreviewRateLimit(sessionToken);
+    const rateLimitCheck = await checkPreviewRateLimit(sessionToken);
     if (!rateLimitCheck.allowed) {
       return NextResponse.json(
         { ok: false, error: rateLimitCheck.error },
@@ -82,14 +82,14 @@ export async function POST(req: NextRequest) {
     }
 
     // Catat percobaan pratinjau
-    recordPreviewAttempt(sessionToken);
+    await recordPreviewAttempt(sessionToken);
 
     // 7. Eksekusi Pengambilan Pratinjau (SATU kali per permintaan eksplisit)
     const result = await fetchThreadsPreview(rawUrl);
 
     // Bila menerima status 403 atau 429 dari Threads, aktifkan circuit breaker 15 menit
     if (result.statusCode === 403 || result.statusCode === 429) {
-      triggerCircuitBreaker(result.statusCode);
+      await triggerCircuitBreaker(result.statusCode);
       return NextResponse.json(
         {
           ok: false,
