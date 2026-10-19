@@ -74,8 +74,8 @@ cp .env.example .env
 Sesuaikan konfigurasi `DATABASE_URL` di `.env`:
 
 ```env
-DATABASE_URL="postgresql://threads_monitoring:threads_monitoring@localhost:5432/threads_monitoring?schema=public"
-INPUT_TOKEN="dev_secret_token_123"
+DATABASE_URL="postgresql://USER:PASSWORD@localhost:5432/DATABASE?schema=public"
+INPUT_TOKEN="change_me"
 LLM_PROVIDER="gemini"
 ```
 
