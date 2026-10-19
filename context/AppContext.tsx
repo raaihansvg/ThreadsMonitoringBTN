@@ -8,6 +8,8 @@ import React, {
   ReactNode,
 } from "react";
 
+import { getPresetDateRanges } from "@/lib/time";
+
 export type Role = "penonton" | "petugas";
 export type Granularity = "Harian" | "Mingguan";
 
@@ -15,6 +17,11 @@ export interface DateRange {
   startDate: string;
   endDate: string;
   label: string;
+}
+
+export interface ToastInfo {
+  message: string;
+  type?: "success" | "info" | "error";
 }
 
 interface AppContextType {
@@ -43,13 +50,12 @@ interface AppContextType {
   // Data refresh trigger
   refreshTrigger: number;
   triggerRefresh: () => void;
+  // Toast notification
+  toast: ToastInfo | null;
+  showToast: (message: string, type?: "success" | "info" | "error") => void;
 }
 
-const defaultDateRange: DateRange = {
-  startDate: "2026-09-17T00:00:00.000Z",
-  endDate: "2026-10-17T23:59:59.999Z",
-  label: "30 Hari Terakhir (17 Sep - 17 Okt 2026)",
-};
+const defaultDateRange: DateRange = getPresetDateRanges()[2];
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
@@ -78,6 +84,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const triggerRefresh = () => setRefreshTrigger((prev) => prev + 1);
+
+  // Toast notification
+  const [toast, setToast] = useState<ToastInfo | null>(null);
+  const showToast = (
+    message: string,
+    type: "success" | "info" | "error" = "success"
+  ) => {
+    setToast({ message, type });
+    setTimeout(() => {
+      setToast(null);
+    }, 3500);
+  };
 
   // Check initial session
   useEffect(() => {
@@ -155,6 +173,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setSelectedTopic,
         refreshTrigger,
         triggerRefresh,
+        toast,
+        showToast,
       }}
     >
       {children}

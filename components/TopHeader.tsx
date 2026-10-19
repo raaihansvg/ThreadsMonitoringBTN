@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { BtnLogo } from "./BtnLogo";
 import { useApp } from "@/context/AppContext";
+import { formatWIBHeaderDate } from "@/lib/time";
 import {
   Plus,
   Upload,
@@ -26,10 +27,15 @@ export function TopHeader() {
     refreshTrigger,
   } = useApp();
 
-  const [unreadAlerts, setUnreadAlerts] = useState<number>(2);
+  const [unreadAlerts, setUnreadAlerts] = useState<number>(0);
+  const [headerDate, setHeaderDate] = useState<string>("...");
 
   useEffect(() => {
-    fetch("/api/alerts?filter=unread")
+    setHeaderDate(formatWIBHeaderDate());
+  }, []);
+
+  useEffect(() => {
+    fetch(`/api/alerts?filter=unread&includeSample=${showSampleData}`)
       .then((res) => res.json())
       .then((data) => {
         if (data.ok && Array.isArray(data.alerts)) {
@@ -37,7 +43,7 @@ export function TopHeader() {
         }
       })
       .catch(() => setUnreadAlerts(0));
-  }, [refreshTrigger]);
+  }, [refreshTrigger, showSampleData]);
 
   const handleRoleButtonClick = () => {
     if (role === "petugas") {
@@ -121,7 +127,7 @@ export function TopHeader() {
           aria-label={`Alert Notifikasi: ${unreadAlerts} belum dibaca`}
         >
           <Bell className="h-4 w-4 text-slate-600" strokeWidth={2} />
-          <span>Sab, 17 Okt</span>
+          <span>{headerDate}</span>
           <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#E60012] text-xs font-bold text-white">
             {unreadAlerts}
           </span>
