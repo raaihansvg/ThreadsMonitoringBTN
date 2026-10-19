@@ -10,6 +10,7 @@ import {
 import { requireOfficer } from "@/lib/auth/session";
 import { sampleDataSchema } from "@/lib/validation/schemas";
 import { DEFAULT_THRESHOLDS } from "@/lib/config/thresholds";
+import { formatWIBFullDate } from "@/lib/time";
 
 export const dynamic = "force-dynamic";
 
@@ -49,7 +50,7 @@ export async function POST(req: NextRequest) {
       });
       await prisma.alert.deleteMany({});
 
-      const now = new Date("2026-10-17T12:00:00.000Z");
+      const now = new Date();
       const subDays = (days: number) =>
         new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
 
@@ -141,6 +142,40 @@ export async function POST(req: NextRequest) {
           kataKunci: ["festival properti", "jcc", "promo kpr"],
           penyediaAnalisis: "gemini",
         },
+        {
+          linkAsli: "https://www.threads.net/@user/post/DF_day7_1",
+          linkTernormalisasi: "https://threads.net/post/DF_day7_1",
+          teksPostingan:
+            "Alhamdulillah pembiayaan rumah lewat BTN Syariah disetujui tanpa kendala. Akad murabahah transparan.",
+          sumberInput: InputSourceType.CONTOH,
+          tanggalDitemukan: subDays(7),
+          topik: "BTN Syariah",
+          sentimen: Sentiment.POSITIF,
+          prioritas: Priority.RUTIN,
+          status: MentionStatus.SELESAI,
+          headline: "Penyaluran Pembiayaan Rumah BTN Syariah Berjalan Lancar",
+          ringkasan:
+            "Nasabah menyatakan kepuasan atas transparansi dan kecepatan persetujuan pembiayaan rumah di BTN Syariah.",
+          kataKunci: ["btn syariah", "akad murabahah"],
+          penyediaAnalisis: "gemini",
+        },
+        {
+          linkAsli: "https://www.threads.net/@user/post/DF_day12_1",
+          linkTernormalisasi: "https://threads.net/post/DF_day12_1",
+          teksPostingan:
+            "Pelayanan customer service Bank BTN Kantor Cabang sangat ramah dan solutif saat pengurusan buku tabungan hilang.",
+          sumberInput: InputSourceType.CONTOH,
+          tanggalDitemukan: subDays(12),
+          topik: "Layanan Cabang",
+          sentimen: Sentiment.POSITIF,
+          prioritas: Priority.RUTIN,
+          status: MentionStatus.SELESAI,
+          headline: "Apresiasi Pelayanan Ramah Petugas CS Bank BTN Cabang",
+          ringkasan:
+            "Nasabah mengapresiasi kecepatan dan keramahan petugas customer service BTN dalam menangani kendala nasabah.",
+          kataKunci: ["layanan cabang", "customer service"],
+          penyediaAnalisis: "gemini",
+        },
       ];
 
       for (const m of sampleMentions) {
@@ -152,19 +187,21 @@ export async function POST(req: NextRequest) {
           {
             jenis: AlertType.LONJAKAN,
             topik: "KPR BTN",
-            periode: "14 Okt 2026",
+            periode: formatWIBFullDate(subDays(3)),
             jumlah: 16,
             ambangDipakai: 10,
             dibaca: false,
+            sumberInput: InputSourceType.CONTOH,
             dibuatPada: subDays(3),
           },
           {
             jenis: AlertType.PERLU_PERHATIAN,
             topik: "BTN Mobile",
-            periode: "17 Okt 2026",
+            periode: formatWIBFullDate(now),
             jumlah: 4,
             ambangDipakai: DEFAULT_THRESHOLDS.negativeThreshold,
             dibaca: false,
+            sumberInput: InputSourceType.CONTOH,
             dibuatPada: now,
           },
         ],
