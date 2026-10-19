@@ -135,6 +135,44 @@ Respons yang diharapkan saat basis data terhubung:
 - `npm run lint`: Menjalankan pemeriksaan ESLint.
 - `npm run format`: Memformat seluruh file dengan Prettier.
 - `npm run format:check`: Memeriksa format file tanpa mengubah.
+- `npm test`: Menjalankan seluruh tes Vitest **di database tes terpisah** (lihat di bawah).
+
+---
+
+## Database Tes (Tahap 3E)
+
+Tes **tidak pernah** menyentuh database pengembangan. Vitest memakai `DATABASE_URL_TEST`
+dan akan **menolak berjalan** bila variabel itu kosong atau menunjuk ke database yang sama
+dengan `DATABASE_URL` (dibandingkan per host, port, nama database, dan schema).
+
+### 1. Buat database tes (sekali saja)
+
+Role `threads_monitoring` memiliki hak `CREATEDB`, jadi cukup:
+
+```bash
+createdb -h localhost -U threads_monitoring threads_monitoring_test
+# atau lewat psql:
+psql -h localhost -U threads_monitoring -d postgres -c "CREATE DATABASE threads_monitoring_test;"
+```
+
+### 2. Isi `.env`
+
+```env
+DATABASE_URL_TEST="postgresql://threads_monitoring:PASSWORD@localhost:5432/threads_monitoring_test?schema=public"
+```
+
+### 3. Jalankan tes
+
+```bash
+npm test
+```
+
+Alur otomatis (`vitest.config.ts`):
+
+1. `tests/setup/global-setup.ts` — memvalidasi `DATABASE_URL_TEST`, lalu menjalankan
+   `prisma migrate deploy` ke database tes.
+2. `tests/setup/per-test.ts` — mengarahkan `DATABASE_URL` proses tes ke database tes dan
+   menjalankan `TRUNCATE ... CASCADE` pada seluruh tabel aplikasi **setelah setiap tes**.
 
 ---
 
