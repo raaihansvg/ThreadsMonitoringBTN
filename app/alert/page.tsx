@@ -148,8 +148,9 @@ export default function AlertPage() {
                       timeZone: "Asia/Jakarta",
                     })}{" "}
                   • Ambang dipakai:{" "}
-                  {a.ambangDipakai ?? (a.jenis === "LONJAKAN" ? 10 : 3)}{" "}
-                  mention/hari
+                  {a.ambangDipakai !== null && a.ambangDipakai !== undefined
+                    ? `${a.ambangDipakai} mention/hari`
+                    : "— (dipicu per-insiden)"}
                 </p>
               </div>
 

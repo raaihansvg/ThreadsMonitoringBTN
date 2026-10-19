@@ -84,6 +84,8 @@ model Alert {
   dibaca        Boolean         @default(false)
   sumberInput   InputSourceType
   dibuatPada    DateTime        @default(now())
+
+  @@unique([jenis, topik, periode, sumberInput])
 }
 
 model ImportBatch {

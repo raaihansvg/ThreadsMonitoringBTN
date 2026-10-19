@@ -19,6 +19,7 @@ vi.mock("@/lib/prisma", () => {
       alert: {
         create: vi.fn().mockResolvedValue({ id: "mock-alert-1" }),
         findFirst: vi.fn().mockResolvedValue(null),
+        upsert: vi.fn().mockResolvedValue({ id: "mock-alert-1" }),
       },
       systemConfig: {
         findUnique: vi.fn().mockResolvedValue(null),
