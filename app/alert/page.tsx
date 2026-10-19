@@ -17,7 +17,8 @@ interface AlertItem {
 }
 
 export default function AlertPage() {
-  const { role, refreshTrigger, triggerRefresh, showSampleData } = useApp();
+  const { role, refreshTrigger, triggerRefresh, showSampleData, showToast } =
+    useApp();
   const [alerts, setAlerts] = useState<AlertItem[]>([]);
   const [filter, setFilter] = useState<"all" | "unread">("all");
   const [loading, setLoading] = useState(true);
@@ -45,10 +46,10 @@ export default function AlertPage() {
       if (res.ok) {
         triggerRefresh();
       } else {
-        alert("Gagal menandai alert.");
+        showToast("Gagal menandai alert.", "error");
       }
     } catch {
-      alert("Terjadi kendala jaringan.");
+      showToast("Terjadi kendala jaringan.", "error");
     }
   };
 

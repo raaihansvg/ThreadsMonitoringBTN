@@ -25,6 +25,7 @@ export function ModalInput() {
     setTokenModalOpen,
     triggerRefresh,
     showToast,
+    confirmDialog,
   } = useApp();
 
   // Wizard Step: 1 = Tempel Tautan & Teks, 2 = Tinjau & Simpan
@@ -173,24 +174,33 @@ export function ModalInput() {
     setDetectedPii(found);
   }, [postText]);
 
+  const handleRequestClose = useCallback(async () => {
+    if (url || postText) {
+      const ok = await confirmDialog({
+        title: "Tutup formulir?",
+        message: "Isian formulir yang belum disimpan akan hilang.",
+        confirmLabel: "Tutup Formulir",
+        cancelLabel: "Batal",
+        variant: "danger",
+      });
+      if (ok) {
+        setInputModalOpen(false);
+      }
+    } else {
+      setInputModalOpen(false);
+    }
+  }, [url, postText, confirmDialog, setInputModalOpen]);
+
   // Keyboard Escape listener
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape" && isInputModalOpen) {
-        if (url || postText) {
-          if (
-            confirm("Tutup formulir? Isian yang belum disimpan akan hilang.")
-          ) {
-            setInputModalOpen(false);
-          }
-        } else {
-          setInputModalOpen(false);
-        }
+        handleRequestClose();
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isInputModalOpen, url, postText, setInputModalOpen]);
+  }, [isInputModalOpen, handleRequestClose]);
 
   if (!isInputModalOpen) return null;
 
@@ -257,7 +267,10 @@ export function ModalInput() {
       return;
     }
     if (!postText.trim()) {
-      alert("Teks tidak dapat diambil otomatis. Tempel teks postingan.");
+      showToast(
+        "Teks tidak dapat diambil otomatis. Silakan tempel teks postingan.",
+        "info"
+      );
       return;
     }
 
@@ -363,19 +376,7 @@ export function ModalInput() {
       <div className="relative max-h-[92vh] w-full max-w-xl overflow-y-auto rounded-[32px] border border-white bg-white p-6 shadow-2xl sm:p-7">
         {/* Tombol Tutup */}
         <button
-          onClick={() => {
-            if (url || postText) {
-              if (
-                confirm(
-                  "Tutup formulir? Isian yang belum disimpan akan hilang."
-                )
-              ) {
-                setInputModalOpen(false);
-              }
-            } else {
-              setInputModalOpen(false);
-            }
-          }}
+          onClick={handleRequestClose}
           className="absolute right-5 top-5 rounded-full p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
           aria-label="Tutup"
         >

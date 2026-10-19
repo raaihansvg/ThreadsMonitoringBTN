@@ -27,7 +27,14 @@ interface DraftMention {
 }
 
 export default function DraftPage() {
-  const { role, refreshTrigger, triggerRefresh, showSampleData } = useApp();
+  const {
+    role,
+    refreshTrigger,
+    triggerRefresh,
+    showSampleData,
+    confirmDialog,
+    showToast,
+  } = useApp();
   const [drafts, setDrafts] = useState<DraftMention[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -100,7 +107,15 @@ export default function DraftPage() {
     withEdits = false
   ) => {
     if (action === "reject") {
-      if (!confirm("Apakah Anda yakin ingin menolak dan menghapus draf ini?")) {
+      const ok = await confirmDialog({
+        title: "Tolak dan hapus draf?",
+        message:
+          "Draf postingan ini akan ditolak dan dihapus secara permanen dari sistem. Tindakan ini tidak bisa dibatalkan.",
+        confirmLabel: "Tolak Draf",
+        cancelLabel: "Batal",
+        variant: "danger",
+      });
+      if (!ok) {
         return;
       }
     }
@@ -111,8 +126,9 @@ export default function DraftPage() {
         ? editTeksPostingan
         : targetDraft?.teksPostingan;
       if (!effectiveText || effectiveText.trim() === "") {
-        alert(
-          "Draf tanpa teks tidak dapat disetujui. Silakan klik 'Edit Analisis' dan isi teks postingan terlebih dahulu."
+        showToast(
+          "Draf tanpa teks tidak dapat disetujui. Silakan klik 'Edit Analisis' dan isi teks postingan terlebih dahulu.",
+          "error"
         );
         return;
       }
@@ -146,10 +162,10 @@ export default function DraftPage() {
         triggerRefresh();
       } else {
         const data = await res.json().catch(() => ({}));
-        alert(data.error || "Gagal memproses draf.");
+        showToast(data.error || "Gagal memproses draf.", "error");
       }
     } catch {
-      alert("Terjadi kendala jaringan saat memproses draf.");
+      showToast("Terjadi kendala jaringan saat memproses draf.", "error");
     }
   };
 

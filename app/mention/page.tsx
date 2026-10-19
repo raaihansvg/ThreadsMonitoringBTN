@@ -31,8 +31,15 @@ interface Mention {
 
 function MentionPageContent() {
   const searchParams = useSearchParams();
-  const { role, showSampleData, dateRange, refreshTrigger, triggerRefresh } =
-    useApp();
+  const {
+    role,
+    showSampleData,
+    dateRange,
+    refreshTrigger,
+    triggerRefresh,
+    confirmDialog,
+    showToast,
+  } = useApp();
 
   const [mentions, setMentions] = useState<Mention[]>([]);
   const [loading, setLoading] = useState(true);
@@ -125,28 +132,35 @@ function MentionPageContent() {
       if (res.ok) {
         triggerRefresh();
       } else {
-        alert("Gagal memperbarui status mention.");
+        showToast("Gagal memperbarui status mention.", "error");
       }
     } catch {
-      alert("Terjadi kendala jaringan.");
+      showToast("Terjadi kendala jaringan.", "error");
     }
   };
 
   const handleDeleteMention = async (id: string) => {
-    if (
-      !confirm("Apakah Anda yakin ingin menghapus mention ini secara permanen?")
-    ) {
+    const ok = await confirmDialog({
+      title: "Hapus mention ini?",
+      message:
+        "Mention ini akan dihapus secara permanen dari sistem. Tindakan ini tidak bisa dibatalkan.",
+      confirmLabel: "Hapus",
+      cancelLabel: "Batal",
+      variant: "danger",
+    });
+    if (!ok) {
       return;
     }
     try {
       const res = await fetch(`/api/mentions/${id}`, { method: "DELETE" });
       if (res.ok) {
         triggerRefresh();
+        showToast("Mention berhasil dihapus.", "success");
       } else {
-        alert("Gagal menghapus mention.");
+        showToast("Gagal menghapus mention.", "error");
       }
     } catch {
-      alert("Terjadi kendala jaringan.");
+      showToast("Terjadi kendala jaringan.", "error");
     }
   };
 

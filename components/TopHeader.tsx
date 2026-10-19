@@ -25,6 +25,7 @@ export function TopHeader() {
     setTokenModalOpen,
     logout,
     refreshTrigger,
+    confirmDialog,
   } = useApp();
 
   const [unreadAlerts, setUnreadAlerts] = useState<number>(0);
@@ -45,9 +46,17 @@ export function TopHeader() {
       .catch(() => setUnreadAlerts(0));
   }, [refreshTrigger, showSampleData]);
 
-  const handleRoleButtonClick = () => {
+  const handleRoleButtonClick = async () => {
     if (role === "petugas") {
-      if (confirm("Apakah Anda yakin ingin keluar dari sesi Petugas Input?")) {
+      const ok = await confirmDialog({
+        title: "Keluar dari sesi Petugas?",
+        message:
+          "Sesi input Anda akan berakhir dan Anda akan kembali ke mode penonton.",
+        confirmLabel: "Keluar",
+        cancelLabel: "Batal",
+        variant: "primary",
+      });
+      if (ok) {
         logout();
       }
     } else {

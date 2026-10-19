@@ -19,7 +19,8 @@ interface Topic {
 }
 
 export default function TopicsConfigPage() {
-  const { role, refreshTrigger, triggerRefresh } = useApp();
+  const { role, refreshTrigger, triggerRefresh, confirmDialog, showToast } =
+    useApp();
 
   const [topics, setTopics] = useState<Topic[]>([]);
   const [loading, setLoading] = useState(true);
@@ -88,10 +89,10 @@ export default function TopicsConfigPage() {
         setThresholdSaved(true);
         setTimeout(() => setThresholdSaved(false), 2000);
       } else {
-        alert("Gagal menyimpan ambang alert ke database.");
+        showToast("Gagal menyimpan ambang alert ke database.", "error");
       }
     } catch {
-      alert("Terjadi kendala jaringan saat menyimpan ambang.");
+      showToast("Terjadi kendala jaringan saat menyimpan ambang.", "error");
     } finally {
       setIsSavingThreshold(false);
     }
@@ -116,25 +117,34 @@ export default function TopicsConfigPage() {
         setNewTopicName("");
         setNewKeywords("");
         triggerRefresh();
+        showToast("Topik berhasil ditambahkan.", "success");
       } else {
-        alert("Gagal menambahkan topik.");
+        showToast("Gagal menambahkan topik.", "error");
       }
     } catch {
-      alert("Terjadi kendala jaringan.");
+      showToast("Terjadi kendala jaringan.", "error");
     }
   };
 
   const handleDeleteTopic = async (id: string, nama: string) => {
-    if (!confirm(`Hapus topik "${nama}" dari sistem?`)) return;
+    const ok = await confirmDialog({
+      title: "Hapus topik?",
+      message: `Topik "${nama}" akan dihapus dari sistem. Tindakan ini tidak bisa dibatalkan.`,
+      confirmLabel: "Hapus",
+      cancelLabel: "Batal",
+      variant: "danger",
+    });
+    if (!ok) return;
     try {
       const res = await fetch(`/api/topics?id=${id}`, { method: "DELETE" });
       if (res.ok) {
         triggerRefresh();
+        showToast(`Topik "${nama}" berhasil dihapus.`, "success");
       } else {
-        alert("Gagal menghapus topik.");
+        showToast("Gagal menghapus topik.", "error");
       }
     } catch {
-      alert("Terjadi kendala jaringan.");
+      showToast("Terjadi kendala jaringan.", "error");
     }
   };
 
@@ -154,7 +164,7 @@ export default function TopicsConfigPage() {
         triggerRefresh();
       }
     } catch {
-      alert("Terjadi kendala jaringan.");
+      showToast("Terjadi kendala jaringan.", "error");
     }
   };
 
@@ -172,18 +182,15 @@ export default function TopicsConfigPage() {
   };
 
   const handleSeedSampleData = async () => {
-    if (
-      !confirm(
-        "Konfirmasi Langkah 1: Apakah Anda ingin mengisi data contoh sintetis ke sistem?"
-      )
-    ) {
-      return;
-    }
-    if (
-      !confirm(
-        "Konfirmasi Langkah 2: Data contoh akan ditambahkan untuk demonstrasi. Lanjutkan?"
-      )
-    ) {
+    const ok = await confirmDialog({
+      title: "Isi data contoh?",
+      message:
+        "Ini menambahkan data sintetis yang ditandai 'Contoh'. Data nyata tidak berubah.",
+      confirmLabel: "Isi Data Contoh",
+      cancelLabel: "Batal",
+      variant: "primary",
+    });
+    if (!ok) {
       return;
     }
 
@@ -194,29 +201,26 @@ export default function TopicsConfigPage() {
         body: JSON.stringify({ action: "seed" }),
       });
       if (res.ok) {
-        alert("Data contoh berhasil diisi ke database.");
+        showToast("Data contoh berhasil diisi ke database.", "success");
         triggerRefresh();
       } else {
-        alert("Gagal mengisi data contoh.");
+        showToast("Gagal mengisi data contoh.", "error");
       }
     } catch {
-      alert("Terjadi kendala jaringan.");
+      showToast("Terjadi kendala jaringan.", "error");
     }
   };
 
   const handleClearSampleData = async () => {
-    if (
-      !confirm(
-        "Konfirmasi Langkah 1: Apakah Anda yakin ingin menghapus semua data contoh sintetis?"
-      )
-    ) {
-      return;
-    }
-    if (
-      !confirm(
-        "Konfirmasi Langkah 2: Data contoh akan dibersihkan dari database. Lanjutkan?"
-      )
-    ) {
+    const ok = await confirmDialog({
+      title: "Hapus semua data contoh?",
+      message:
+        "Hanya data bertanda 'Contoh' yang dihapus. Data nyata tidak terpengaruh.",
+      confirmLabel: "Hapus",
+      cancelLabel: "Batal",
+      variant: "danger",
+    });
+    if (!ok) {
       return;
     }
 
@@ -227,11 +231,11 @@ export default function TopicsConfigPage() {
         body: JSON.stringify({ action: "clear" }),
       });
       if (res.ok) {
-        alert("Semua data contoh berhasil dihapus.");
+        showToast("Semua data contoh berhasil dihapus.", "success");
         triggerRefresh();
       }
     } catch {
-      alert("Terjadi kendala jaringan.");
+      showToast("Terjadi kendala jaringan.", "error");
     }
   };
 

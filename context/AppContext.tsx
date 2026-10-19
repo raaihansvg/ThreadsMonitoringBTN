@@ -53,6 +53,25 @@ interface AppContextType {
   // Toast notification
   toast: ToastInfo | null;
   showToast: (message: string, type?: "success" | "info" | "error") => void;
+  // Dialog Konfirmasi Aksesibel (Tahap 3E)
+  confirmDialogState: ConfirmState | null;
+  confirmDialog: (options: ConfirmOptions) => Promise<boolean>;
+  closeConfirmDialog: (result: boolean) => void;
+}
+
+export interface ConfirmOptions {
+  title: string;
+  message: string;
+  confirmLabel?: string;
+  cancelLabel?: string;
+  variant?: "primary" | "danger";
+}
+
+export interface ConfirmState {
+  isOpen: boolean;
+  options: ConfirmOptions;
+  resolve: (value: boolean) => void;
+  triggerElement: HTMLElement | null;
 }
 
 const defaultDateRange: DateRange = getPresetDateRanges()[2];
@@ -95,6 +114,37 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setTimeout(() => {
       setToast(null);
     }, 3500);
+  };
+
+  // Dialog Konfirmasi Aksesibel (Tahap 3E)
+  const [confirmDialogState, setConfirmDialogState] =
+    useState<ConfirmState | null>(null);
+
+  const confirmDialog = (options: ConfirmOptions): Promise<boolean> => {
+    return new Promise<boolean>((resolve) => {
+      const trigger = (
+        typeof document !== "undefined" ? document.activeElement : null
+      ) as HTMLElement | null;
+      setConfirmDialogState({
+        isOpen: true,
+        options,
+        resolve,
+        triggerElement: trigger,
+      });
+    });
+  };
+
+  const closeConfirmDialog = (result: boolean) => {
+    if (confirmDialogState) {
+      confirmDialogState.resolve(result);
+      const trigger = confirmDialogState.triggerElement;
+      if (trigger && typeof trigger.focus === "function") {
+        setTimeout(() => {
+          trigger.focus();
+        }, 10);
+      }
+      setConfirmDialogState(null);
+    }
   };
 
   // Check initial session
@@ -175,6 +225,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
         triggerRefresh,
         toast,
         showToast,
+        confirmDialogState,
+        confirmDialog,
+        closeConfirmDialog,
       }}
     >
       {children}

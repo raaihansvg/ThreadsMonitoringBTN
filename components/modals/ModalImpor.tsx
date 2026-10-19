@@ -21,7 +21,8 @@ interface ProblemRow {
 
 export function ModalImpor() {
   const router = useRouter();
-  const { isImportModalOpen, setImportModalOpen, triggerRefresh } = useApp();
+  const { isImportModalOpen, setImportModalOpen, triggerRefresh, showToast } =
+    useApp();
   const [activeTab, setActiveTab] = useState<"paste" | "csv">("paste");
   const [pasteContent, setPasteContent] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
@@ -135,7 +136,7 @@ export function ModalImpor() {
 
   const handleProcessPaste = () => {
     if (!pasteContent.trim()) {
-      alert("Masukkan tautan terlebih dahulu.");
+      showToast("Masukkan tautan terlebih dahulu.", "error");
       return;
     }
 
@@ -146,8 +147,9 @@ export function ModalImpor() {
     );
 
     if (isTruncated) {
-      alert(
-        `Hanya ${MAX_IMPORT_ITEMS} item pertama dari total ${totalLines} baris yang akan diproses.`
+      showToast(
+        `Hanya ${MAX_IMPORT_ITEMS} item pertama dari total ${totalLines} baris yang akan diproses.`,
+        "info"
       );
     }
 
@@ -165,7 +167,7 @@ export function ModalImpor() {
 
       const lines = content.split(/\r?\n/).filter((l) => l.trim());
       if (lines.length <= 1) {
-        alert("Berkas CSV kosong atau hanya berisi baris judul.");
+        showToast("Berkas CSV kosong atau hanya berisi baris judul.", "error");
         return;
       }
 
@@ -192,13 +194,17 @@ export function ModalImpor() {
       }
 
       if (parsedItems.length === 0) {
-        alert("Tidak ada baris data yang valid ditemukan dalam berkas CSV.");
+        showToast(
+          "Tidak ada baris data yang valid ditemukan dalam berkas CSV.",
+          "error"
+        );
         return;
       }
 
       if (parsedItems.length > MAX_IMPORT_ITEMS) {
-        alert(
-          `Hanya ${MAX_IMPORT_ITEMS} item pertama dari total ${parsedItems.length} baris CSV yang akan diproses.`
+        showToast(
+          `Hanya ${MAX_IMPORT_ITEMS} item pertama dari total ${parsedItems.length} baris CSV yang akan diproses.`,
+          "info"
         );
       }
 
