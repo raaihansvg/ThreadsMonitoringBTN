@@ -9,7 +9,6 @@ import {
 } from "@prisma/client";
 import { requireOfficer } from "@/lib/auth/session";
 import { sampleDataSchema } from "@/lib/validation/schemas";
-import { DEFAULT_THRESHOLDS } from "@/lib/config/thresholds";
 import { formatWIBFullDate } from "@/lib/time";
 
 export const dynamic = "force-dynamic";
@@ -32,23 +31,30 @@ export async function POST(req: NextRequest) {
     }
     const { action } = parsed.data;
 
-    if (action === "clear") {
-      await prisma.mention.deleteMany({
+    // Tahap 3E: data contoh = SEMUA baris ber-sumberInput CONTOH (mention, Draf, alert).
+    // Hapus HANYA baris contoh; mention/alert nyata tidak pernah tersentuh.
+    const clearSampleRows = async () => {
+      const mentions = await prisma.mention.deleteMany({
         where: { sumberInput: InputSourceType.CONTOH },
       });
-      await prisma.alert.deleteMany({});
+      const alerts = await prisma.alert.deleteMany({
+        where: { sumberInput: InputSourceType.CONTOH },
+      });
+      return { mentions: mentions.count, alerts: alerts.count };
+    };
+
+    if (action === "clear") {
+      const deleted = await clearSampleRows();
       return NextResponse.json({
         ok: true,
         message: "Semua data contoh berhasil dihapus.",
+        deleted,
       });
     }
 
     if (action === "seed") {
       // Re-seed data contoh
-      await prisma.mention.deleteMany({
-        where: { sumberInput: InputSourceType.CONTOH },
-      });
-      await prisma.alert.deleteMany({});
+      await clearSampleRows();
 
       const now = new Date();
       const subDays = (days: number) =>
@@ -176,6 +182,42 @@ export async function POST(req: NextRequest) {
           kataKunci: ["layanan cabang", "customer service"],
           penyediaAnalisis: "gemini",
         },
+        // Sample Draf (status tetap DRAF, sumberInput tetap CONTOH - Tahap 3E)
+        {
+          linkAsli: "https://www.threads.net/@user/post/DF_sample_draft1",
+          linkTernormalisasi: "https://threads.net/post/DF_sample_draft1",
+          teksPostingan:
+            "Baru aja kirim berkas KPR BTN online lewat situs btnproperti.co.id. Tinggal nunggu kabar kelanjutan verifikasi bank.",
+          sumberInput: InputSourceType.CONTOH,
+          tanggalDitemukan: now,
+          topik: "KPR BTN",
+          sentimen: Sentiment.NETRAL,
+          prioritas: Priority.RUTIN,
+          status: MentionStatus.DRAF,
+          headline:
+            "Draf: Pengajuan Berkas KPR Online Melalui Portal BTN Properti",
+          ringkasan:
+            "Pengguna Threads membagikan pengalaman awal pengajuan dokumen KPR secara daring via portal resmi.",
+          kataKunci: ["btn properti", "kpr online"],
+          penyediaAnalisis: "gemini",
+        },
+        {
+          linkAsli: "https://www.threads.net/@user/post/DF_sample_draft2",
+          linkTernormalisasi: "https://threads.net/post/DF_sample_draft2",
+          teksPostingan:
+            "Peringatan hoaks pesan broadcast whatsapp yang mengatasnamakan undian berhadiah tabungan batara BTN.",
+          sumberInput: InputSourceType.CONTOH,
+          tanggalDitemukan: now,
+          topik: "Tabungan BTN",
+          sentimen: Sentiment.NEGATIF,
+          prioritas: Priority.PERLU_PERHATIAN,
+          status: MentionStatus.DRAF,
+          headline: "Draf: Waspada Penipuan Broadcast Hoaks Tabungan Batara",
+          ringkasan:
+            "Laporan pesan berantai penipuan undian palsu yang membutuhkan verifikasi petugas.",
+          kataKunci: ["hoaks", "undian palsu"],
+          penyediaAnalisis: "gemini",
+        },
       ];
 
       for (const m of sampleMentions) {
@@ -198,8 +240,8 @@ export async function POST(req: NextRequest) {
             jenis: AlertType.PERLU_PERHATIAN,
             topik: "BTN Mobile",
             periode: formatWIBFullDate(now),
-            jumlah: 4,
-            ambangDipakai: DEFAULT_THRESHOLDS.negativeThreshold,
+            jumlah: 1, // 1 insiden spesifik per mention mendesak
+            ambangDipakai: null, // Null: dipicu langsung per-insiden, bukan ambang volume
             dibaca: false,
             sumberInput: InputSourceType.CONTOH,
             dibuatPada: now,
