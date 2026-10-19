@@ -8,6 +8,7 @@ import { SubHeader } from "@/components/SubHeader";
 import { ModalToken } from "@/components/modals/ModalToken";
 import { ModalInput } from "@/components/modals/ModalInput";
 import { ModalImpor } from "@/components/modals/ModalImpor";
+import { ToastNotification } from "@/components/ToastNotification";
 
 const plusJakarta = Plus_Jakarta_Sans({
   subsets: ["latin"],
@@ -52,6 +53,7 @@ export default function RootLayout({
           <ModalToken />
           <ModalInput />
           <ModalImpor />
+          <ToastNotification />
         </AppProvider>
       </body>
     </html>

@@ -1,12 +1,14 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { useApp } from "@/context/AppContext";
 import {
   X,
   ShieldCheck,
   Loader2,
   AlertCircle,
+  AlertTriangle,
   ExternalLink,
   ArrowRight,
   ArrowLeft,
@@ -15,16 +17,23 @@ import {
 } from "lucide-react";
 
 export function ModalInput() {
+  const router = useRouter();
   const {
     isInputModalOpen,
     setInputModalOpen,
     prefilledUrl,
     setTokenModalOpen,
     triggerRefresh,
+    showToast,
   } = useApp();
 
   // Wizard Step: 1 = Tempel Tautan & Teks, 2 = Tinjau & Simpan
   const [step, setStep] = useState<1 | 2>(1);
+  const [submitDuplicate, setSubmitDuplicate] = useState<{
+    existingId?: string;
+    url?: string;
+  } | null>(null);
+  const [submitError, setSubmitError] = useState<string>("");
 
   // Form Fields
   const [url, setUrl] = useState("");
@@ -89,6 +98,8 @@ export function ModalInput() {
       }
       setStep(1);
       setDuplicateEntry(null);
+      setSubmitDuplicate(null);
+      setSubmitError("");
       setUrlError("");
     }
   }, [isInputModalOpen, prefilledUrl]);
@@ -277,6 +288,8 @@ export function ModalInput() {
 
   const handleSaveMention = async (e: React.FormEvent) => {
     e.preventDefault();
+    setSubmitDuplicate(null);
+    setSubmitError("");
     setIsSubmitting(true);
 
     const keywords = kataKunciInput
@@ -304,23 +317,37 @@ export function ModalInput() {
 
       const data = await res.json();
       if (res.status === 403) {
-        // Token session expired: prompt Token modal without losing filled fields
-        alert(
+        setSubmitError(
           "Sesi login Petugas telah berakhir. Silakan masukkan token kembali."
         );
         setTokenModalOpen(true);
         return;
       }
 
+      if (res.status === 409) {
+        setSubmitDuplicate({
+          existingId: data.existingId,
+          url: url.trim(),
+        });
+        return;
+      }
+
       if (!res.ok) {
-        alert(data.error || "Gagal menyimpan mention.");
+        setSubmitError(data.error || "Gagal menyimpan mention.");
       } else {
-        alert("Mention berhasil dicatat dan dipublikasikan ke Dashboard.");
         setInputModalOpen(false);
+        showToast("Mention berhasil dicatat dan dipublikasikan.");
         triggerRefresh();
+        // Reset formulir
+        setUrl("");
+        setPostText("");
+        setHeadline("");
+        setRingkasan("");
+        setCanonicalUrl("");
+        setStep(1);
       }
     } catch {
-      alert("Terjadi kendala jaringan saat menyimpan mention.");
+      setSubmitError("Terjadi kendala jaringan saat menyimpan mention.");
     } finally {
       setIsSubmitting(false);
     }
@@ -374,6 +401,45 @@ export function ModalInput() {
               : "Tinjau Hasil Analisis Mention"}
           </h2>
         </div>
+
+        {/* Banner Duplikat 409 pada submit */}
+        {submitDuplicate && (
+          <div className="mb-4 flex items-start justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-xs text-amber-900 shadow-sm">
+            <div className="flex items-start gap-2.5">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+              <div>
+                <p className="font-bold text-amber-950">
+                  Tautan ini sudah tercatat
+                </p>
+                <p className="mt-0.5 text-amber-800">
+                  Tautan postingan Threads ini sudah pernah disimpan sebelumnya
+                  ke sistem.
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setInputModalOpen(false);
+                const targetSearch = submitDuplicate.url || url.trim();
+                router.push(
+                  `/mention?search=${encodeURIComponent(targetSearch)}`
+                );
+              }}
+              className="shrink-0 rounded-full bg-amber-600 px-3 py-1.5 text-xs font-bold text-white transition hover:bg-amber-700"
+            >
+              Buka entri lama
+            </button>
+          </div>
+        )}
+
+        {/* Banner Error Submit */}
+        {submitError && (
+          <div className="mb-4 flex items-center gap-2 rounded-2xl border border-red-200 bg-red-50 p-3 text-xs text-red-700">
+            <AlertCircle className="h-4 w-4 shrink-0 text-red-600" />
+            <span>{submitError}</span>
+          </div>
+        )}
 
         {/* ===================== LANGKAH 1 ===================== */}
         {step === 1 && (
