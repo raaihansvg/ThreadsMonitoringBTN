@@ -33,15 +33,23 @@ export function maskPii(inputText: string): MaskPiiResult {
     text = text.replace(phoneRegex, "[NOMOR_TELEPON_TERSEMBUNYI]");
   }
 
-  // 3. Nomor Identitas / NIK KTP Indonesia (16 digit angka berturut-turut)
+  // 3. Nomor Kartu Debit / Kredit (16 digit dengan pemisah spasi atau tanda hubung: 4-4-4-4)
+  // Dijalankan SEBELUM NIK dan nomor rekening agar kartu berpola pemisah tidak dipecah.
+  const cardRegex = /\b(?:\d{4}[ -]){3}\d{4}\b/g;
+  if (cardRegex.test(text)) {
+    detectedTypes.push("NOMOR_KARTU");
+    text = text.replace(cardRegex, "[NOMOR_KARTU_TERSEMBUNYI]");
+  }
+
+  // 4. Nomor Identitas / NIK KTP Indonesia (16 digit angka berturut-turut)
   const nikRegex = /\b[1-9][0-9]{15}\b/g;
   if (nikRegex.test(text)) {
     detectedTypes.push("NOMOR_IDENTITAS");
     text = text.replace(nikRegex, "[NIK_TERSEMBUNYI]");
   }
 
-  // 4. Nomor Rekening Bank (10 sampai 15 digit angka berturut-turut)
-  // Catatan: dijalankan setelah NIK agar NIK 16 digit tidak terpotong sebagian
+  // 5. Nomor Rekening Bank (10 sampai 15 digit angka berturut-turut)
+  // Catatan: dijalankan setelah NIK dan kartu agar digit tidak terpotong sebagian
   const rekRegex = /\b\d{10,15}\b/g;
   if (rekRegex.test(text)) {
     detectedTypes.push("NOMOR_REKENING");
