@@ -15,13 +15,14 @@ describe("Analisis Cadangan (Kata Kunci) - Tahap 3F", () => {
     // Sentimen: memuat kata negatif kuat ('lenyap', 'woiiii') tanpa kata positif -> NEGATIF
     expect(resA.sentimen).toBe("NEGATIF");
 
-    // Prioritas: sentimen negatif DAN memuat kata kunci risiko ('lenyap', '17m') -> PERLU_PERHATIAN
+    // Prioritas: sentimen negatif DAN memuat kata kunci risiko ('lenyap') -> PERLU_PERHATIAN
     expect(resA.prioritas).toBe("PERLU_PERHATIAN");
 
-    // Kata Kunci: memuat kata kunci risiko dan token nominal yang diekstrak dari teks
+    // Kata Kunci: memuat kata kunci risiko dan entitas (tanpa hardcoded nominal '17m')
     expect(resA.kataKunci).toEqual(
-      expect.arrayContaining(["lenyap", "17m", "bank btn"])
+      expect.arrayContaining(["lenyap", "bank btn"])
     );
+    expect(resA.kataKunci).not.toContain("17m");
   });
 
   it("Kasus B: boleh bagi info nya kak yg memilih kpp BTN daripada take over KPR bank lain?? terima kasih", () => {
@@ -62,9 +63,34 @@ describe("Analisis Cadangan (Kata Kunci) - Tahap 3F", () => {
     // Prioritas: RUTIN
     expect(resC.prioritas).toBe("RUTIN");
 
-    // Kata Kunci: memuat kata kunci topik dan sentimen yang diekstrak
+    // Kata Kunci: memuat kata kunci topik dan sentimen yang diekstrak (deduplikasi menghilangkan 'btn' & 'mobile' terpisah)
     expect(resC.kataKunci).toEqual(
       expect.arrayContaining(["btn mobile", "modern", "responsif"])
     );
+    expect(resC.kataKunci).not.toContain("mobile");
+  });
+
+  it("Generalisasi 1: Teks dengan huruf berulang ('aplikasi russsaaak bangett') terdeteksi negatif", () => {
+    const res = analyzeFallback("aplikasi russsaaak bangett");
+    expect(res.sentimen).toBe("NEGATIF");
+    expect(res.kataKunci).toContain("rusak");
+  });
+
+  it("Generalisasi 2: Teks tanya murni ('apakah kantor cabang buka hari sabtu?') menjadi NETRAL", () => {
+    const res = analyzeFallback("apakah kantor cabang buka hari sabtu?");
+    expect(res.sentimen).toBe("NETRAL");
+    expect(res.topik).toBe("Layanan Kantor Cabang");
+  });
+
+  it("Generalisasi 3: Substring tidak mencocokkan kata lain ('bekas kantor' tidak memicu kata 'kas')", () => {
+    const res = analyzeFallback("bekas kantor cabang lama");
+    expect(res.kataKunci).not.toContain("kas");
+  });
+
+  it("Generalisasi 4: Teks dengan nominal ('transfer 500rb berhasil lancar') tidak dianggap risiko", () => {
+    const res = analyzeFallback("transfer 500rb berhasil lancar");
+    expect(res.sentimen).toBe("POSITIF");
+    expect(res.prioritas).toBe("RUTIN");
+    expect(res.prioritas).not.toBe("PERLU_PERHATIAN");
   });
 });

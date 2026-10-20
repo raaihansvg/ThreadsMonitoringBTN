@@ -15,6 +15,16 @@ export interface FallbackAnalysisResult {
 }
 
 /**
+ * Normalisasi teks: lowercase dan squashing huruf berulang >= 3 kali menjadi 1 huruf.
+ * Contoh: "woiiii" -> "woi", "mantaaap" -> "mantap", "russsaaak" -> "rusak".
+ */
+export function normalizeText(text: string): string {
+  return (text || "")
+    .toLowerCase()
+    .replace(/(.)\1{2,}/g, "$1");
+}
+
+/**
  * Leksikon Kata Sentimen Bahasa Indonesia Sederhana
  */
 export const POSITIVE_WORDS = [
@@ -51,7 +61,6 @@ export const POSITIVE_WORDS = [
   "inovatif",
   "praktis",
   "unggul",
-  "memilih",
 ];
 
 export const NEGATIVE_WORDS = [
@@ -74,9 +83,6 @@ export const NEGATIVE_WORDS = [
   "keluhan",
   "skandal",
   "woi",
-  "woii",
-  "woiii",
-  "woiiii",
   "bobol",
   "kebobolan",
   "sulit",
@@ -128,32 +134,81 @@ export const RISK_KEYWORDS = [
   "sita",
   "ilegal",
   "tuntutan",
-  "17m",
   "milyar",
   "miliar",
 ];
 
 /**
+ * Kata/frasa penanda pertanyaan murni
+ */
+export const QUESTION_INDICATORS = [
+  "apa",
+  "apakah",
+  "bagaimana",
+  "gimana",
+  "kapan",
+  "siapa",
+  "kenapa",
+  "mengapa",
+  "mana",
+  "tau",
+  "tahu",
+  "infonya",
+  "info nya",
+  "boleh bagi info",
+];
+
+/**
+ * Mencocokkan kata atau frasa dengan batasan kata yang ketat.
+ * Mencegah substring di dalam kata lain salah cocok (misal 'kas' tidak cocok dengan 'bekas').
+ */
+export function matchesWordOrPhrase(text: string, term: string): boolean {
+  const t = term.trim().toLowerCase();
+  if (!t) return false;
+  const escaped = t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const regex = new RegExp(`(^|[^a-zA-Z0-9])${escaped}([^a-zA-Z0-9]|$)`, "i");
+  return regex.test(text);
+}
+
+/**
  * Menghitung kecocokan kata/frasa dalam teks dengan boundary regex
  */
-function findMatches(textLower: string, wordList: string[]): string[] {
+export function findMatches(textLower: string, wordList: string[]): string[] {
   const matched: string[] = [];
   for (const word of wordList) {
     const w = word.toLowerCase().trim();
     if (!w) continue;
-    if (w.includes(" ") || w.includes("-") || w.includes("/")) {
-      if (textLower.includes(w)) {
-        matched.push(w);
-      }
-    } else {
-      const escaped = w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-      const regex = new RegExp(`\\b${escaped}\\b`, "i");
-      if (regex.test(textLower) || textLower.includes(w)) {
-        matched.push(w);
-      }
+    if (matchesWordOrPhrase(textLower, w)) {
+      matched.push(w);
     }
   }
   return matched;
+}
+
+/**
+ * Deduplikasi kata kunci: jika frasa panjang sudah ada (misal "btn mobile"),
+ * hapus kata pembentuk yang lebih pendek (seperti "btn" atau "mobile").
+ */
+export function deduplicateKeywords(keywords: string[]): string[] {
+  const unique = Array.from(
+    new Set(keywords.map((k) => k.trim().toLowerCase()).filter(Boolean))
+  );
+  // Urutkan dari yang terpanjang ke terpendek
+  const sorted = [...unique].sort((a, b) => b.length - a.length);
+  const result: string[] = [];
+
+  for (const kw of sorted) {
+    const isSub = result.some((longer) => {
+      const escaped = kw.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const regex = new RegExp(`(^|[^a-zA-Z0-9])${escaped}([^a-zA-Z0-9]|$)`, "i");
+      return regex.test(longer);
+    });
+    if (!isSub) {
+      result.push(kw);
+    }
+  }
+
+  return result;
 }
 
 /**
@@ -165,27 +220,49 @@ export function analyzeFallback(
   topics: TopicDefinition[] = CONFIGURED_TOPICS
 ): FallbackAnalysisResult {
   const cleanText = (text || "").trim();
-  const textLower = cleanText.toLowerCase();
+  const normalizedText = normalizeText(cleanText);
 
   // 1. Deteksi Topik via topicSelector (kecocokan terbanyak, urutan config, fallback 'Lainnya')
-  const selectedTopic = selectTopic(cleanText, topics);
+  const selectedTopic = selectTopic(normalizedText, topics);
 
   // 2. Deteksi Sentimen dari Leksikon Kata Positif & Negatif
-  const matchedPositive = findMatches(textLower, POSITIVE_WORDS);
-  const matchedNegative = findMatches(textLower, NEGATIVE_WORDS);
+  const matchedPositive = findMatches(normalizedText, POSITIVE_WORDS);
+  const matchedNegative = findMatches(normalizedText, NEGATIVE_WORDS);
+
+  const hasQuestionMark = cleanText.includes("?");
+  const matchedQuestions = findMatches(normalizedText, QUESTION_INDICATORS);
+  const isQuestion = hasQuestionMark || matchedQuestions.length > 0;
 
   let sentimen: "POSITIF" | "NETRAL" | "NEGATIF" = "NETRAL";
   if (matchedNegative.length > matchedPositive.length) {
     sentimen = "NEGATIF";
   } else if (matchedPositive.length > matchedNegative.length) {
     sentimen = "POSITIF";
-  } else if (matchedNegative.length > 0 && matchedPositive.length > 0) {
-    // Bila seimbang tetapi ada kata negatif kuat, tetap netral atau condong ke negatif
+  } else {
     sentimen = "NETRAL";
   }
 
+  // Kalimat tanya murni: bila teks memuat tanda tanya (?) atau kata tanya
+  // DAN tidak memuat kata negatif kuat, tetapkan sentimen "NETRAL" (bukan negatif),
+  // kecuali bila secara eksplisit memuat ungkapan terima kasih / apresiasi.
+  if (isQuestion && matchedNegative.length === 0) {
+    const hasGratitude = matchedPositive.some((w) =>
+      [
+        "terima kasih",
+        "terimakasih",
+        "makasih",
+        "alhamdulillah",
+        "bersyukur",
+        "apresiasi",
+      ].includes(w)
+    );
+    if (!hasGratitude) {
+      sentimen = "NETRAL";
+    }
+  }
+
   // 3. Deteksi Kata Kunci Risiko & Prioritas
-  const matchedRisks = findMatches(textLower, RISK_KEYWORDS);
+  const matchedRisks = findMatches(normalizedText, RISK_KEYWORDS);
 
   let prioritas: "RUTIN" | "PANTAU" | "PERLU_PERHATIAN" = "RUTIN";
   if (sentimen === "NEGATIF") {
@@ -202,48 +279,38 @@ export function analyzeFallback(
   }
 
   // 4. Ekstraksi Kata Kunci yang Cocok dari Teks
-  const matchedKeywordsSet = new Set<string>();
+  const matchedKeywordsList: string[] = [];
 
   // Ekstraksi kata kunci topik yang cocok
   for (const topic of topics) {
     for (const kw of topic.kataKunci) {
       const lowerKw = kw.toLowerCase().trim();
       if (!lowerKw) continue;
-      if (lowerKw.includes(" ") || lowerKw.includes("-")) {
-        if (textLower.includes(lowerKw)) {
-          matchedKeywordsSet.add(lowerKw);
-        }
-      } else {
-        const escaped = lowerKw.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-        if (new RegExp(`\\b${escaped}\\b`, "i").test(textLower)) {
-          matchedKeywordsSet.add(lowerKw);
-        }
+      if (matchesWordOrPhrase(normalizedText, lowerKw)) {
+        matchedKeywordsList.push(lowerKw);
       }
     }
   }
 
   // Tambahkan kata risiko yang cocok
   for (const rk of matchedRisks) {
-    matchedKeywordsSet.add(rk);
+    matchedKeywordsList.push(rk);
   }
 
   // Tambahkan kata sentimen yang cocok
   for (const sw of [...matchedPositive, ...matchedNegative]) {
-    matchedKeywordsSet.add(sw);
+    matchedKeywordsList.push(sw);
   }
 
-  // Deteksi entitas khusus seperti "bank btn", "btn", atau token nominal seperti "17m"
-  if (textLower.includes("bank btn")) matchedKeywordsSet.add("bank btn");
-  else if (textLower.includes("btn")) matchedKeywordsSet.add("btn");
-
-  const nominalMatches = textLower.match(/\b\d+[mjrbk]\b/g);
-  if (nominalMatches) {
-    for (const nom of nominalMatches) {
-      matchedKeywordsSet.add(nom);
-    }
+  // Deteksi entitas khusus seperti "bank btn" atau "btn"
+  if (matchesWordOrPhrase(normalizedText, "bank btn")) {
+    matchedKeywordsList.push("bank btn");
+  } else if (matchesWordOrPhrase(normalizedText, "btn")) {
+    matchedKeywordsList.push("btn");
   }
 
-  let extractedKeywords = Array.from(matchedKeywordsSet);
+  // Deduplikasi: kata/frasa yang tercakup dalam frasa yang lebih panjang dihilangkan
+  let extractedKeywords = deduplicateKeywords(matchedKeywordsList);
   if (extractedKeywords.length === 0) {
     extractedKeywords = [selectedTopic.toLowerCase()];
   }
