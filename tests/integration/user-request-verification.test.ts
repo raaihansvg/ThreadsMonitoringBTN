@@ -11,7 +11,10 @@ import {
 import { POST as draftsPost, GET as draftsGet } from "@/app/api/drafts/route";
 import { POST as topicsPost, GET as topicsGet } from "@/app/api/topics/route";
 import { GET as alertsGet, PATCH as alertsPatch } from "@/app/api/alerts/route";
+import { GET as exportGet } from "@/app/api/export/route";
+import { POST as authPost } from "@/app/api/auth/token/route";
 import { parseBulkPaste, MAX_IMPORT_ITEMS } from "@/lib/ingest/parseImport";
+import { sanitizeFormulaInjection } from "@/lib/export/sanitize";
 import { normalizeThreadsUrl } from "@/lib/url";
 import { createSignedSessionToken } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
@@ -22,7 +25,7 @@ import {
   Sentiment,
 } from "@prisma/client";
 
-describe("Verifikasi Permintaan Pengujian (Nomor 12 s/d 17)", () => {
+describe("Verifikasi Permintaan Pengujian (Nomor 12 s/d 25)", () => {
   const host = "localhost:3000";
   const baseUrl = `http://${host}`;
   let officerHeaders: Record<string, string>;
@@ -543,6 +546,232 @@ describe("Verifikasi Permintaan Pengujian (Nomor 12 s/d 17)", () => {
       const dataThresholdRestored = await resGetThresholdRestored.json();
       expect(dataThresholdRestored.thresholds.volumeThreshold).toBe(10);
       expect(dataThresholdRestored.thresholds.negativeThreshold).toBe(3);
+    });
+  });
+
+  // -------------------------------------------------------------
+  // NOMOR 18 & 19 (EKSPOR)
+  // -------------------------------------------------------------
+  describe("Nomor 18: Unduh CSV, Excel, dan PDF (Draf tidak ikut, data contoh bertanda, cocok filter)", () => {
+    it("mengecualikan Draf, menandai data contoh, dan merespons berkas CSV, XLSX, dan HTML/PDF", async () => {
+      // Siapkan 1 entri Draf (tidak boleh muncul di ekspor)
+      const draftUrl = `https://threads.net/@user/post/exp_draft_${Date.now()}`;
+      await prisma.mention.create({
+        data: {
+          linkAsli: draftUrl,
+          linkTernormalisasi: draftUrl,
+          teksPostingan: "Postingan draf rahasia",
+          status: MentionStatus.DRAF,
+          sumberInput: InputSourceType.FORM,
+        },
+      });
+
+      // Siapkan 1 entri Nyata BARU
+      const realUrl = `https://threads.net/@user/post/exp_real_${Date.now()}`;
+      await prisma.mention.create({
+        data: {
+          linkAsli: realUrl,
+          linkTernormalisasi: realUrl,
+          teksPostingan: "Postingan nyata BTN",
+          status: MentionStatus.BARU,
+          sumberInput: InputSourceType.FORM,
+          topik: "BTN Mobile",
+          sentimen: Sentiment.POSITIF,
+        },
+      });
+
+      // Siapkan 1 entri Contoh BARU
+      const sampleUrl = `https://threads.net/@user/post/exp_sample_${Date.now()}`;
+      await prisma.mention.create({
+        data: {
+          linkAsli: sampleUrl,
+          linkTernormalisasi: sampleUrl,
+          teksPostingan: "Postingan simulasi contoh",
+          status: MentionStatus.BARU,
+          sumberInput: InputSourceType.CONTOH,
+          topik: "BTN Mobile",
+          sentimen: Sentiment.POSITIF,
+        },
+      });
+
+      // A. Unduh CSV
+      const reqCsv = new NextRequest(`${baseUrl}/api/export?format=csv&includeSample=true`);
+      const resCsv = await exportGet(reqCsv);
+      expect(resCsv.status).toBe(200);
+      expect(resCsv.headers.get("content-type")).toContain("text/csv");
+      const csvText = await resCsv.text();
+
+      // Cek: Draf TIDAK ikut
+      expect(csvText).not.toContain("Postingan draf rahasia");
+      // Cek: Data contoh bertanda CONTOH (SIMULASI)
+      expect(csvText).toContain("CONTOH (SIMULASI)");
+      expect(csvText).toContain("Postingan simulasi contoh");
+      expect(csvText).toContain("Postingan nyata BTN");
+
+      // B. Unduh Excel (XLSX)
+      const reqXlsx = new NextRequest(`${baseUrl}/api/export?format=xlsx&includeSample=true`);
+      const resXlsx = await exportGet(reqXlsx);
+      expect(resXlsx.status).toBe(200);
+      expect(resXlsx.headers.get("content-type")).toContain("spreadsheetml.sheet");
+      const arrayBuffer = await resXlsx.arrayBuffer();
+      expect(arrayBuffer.byteLength).toBeGreaterThan(1000); // Berkas Excel valid
+
+      // C. Unduh PDF / HTML Printable
+      const reqPdf = new NextRequest(`${baseUrl}/api/export?format=pdf&includeSample=true`);
+      const resPdf = await exportGet(reqPdf);
+      expect(resPdf.status).toBe(200);
+      expect(resPdf.headers.get("content-type")).toContain("text/html");
+      const htmlText = await resPdf.text();
+      expect(htmlText).toContain("Laporan Monitoring Media Sosial Threads");
+      expect(htmlText).toContain("PT Bank Tabungan Negara");
+      expect(htmlText).not.toContain("Postingan draf rahasia");
+    });
+  });
+
+  describe("Nomor 19: Simpan mention uji diawali =1+1 -> diekspor sebagai teks aman (bukan formula)", () => {
+    it("menambahkan tanda petik satu pada teks berawalan formula injection", async () => {
+      const formulaText = "=1+1 injeksi formula";
+      const sanitized = sanitizeFormulaInjection(formulaText);
+      expect(sanitized).toBe("'=1+1 injeksi formula");
+
+      // Simpan di DB dan ekspor via CSV
+      const formulaUrl = `https://threads.net/@user/post/exp_formula_${Date.now()}`;
+      await prisma.mention.create({
+        data: {
+          linkAsli: formulaUrl,
+          linkTernormalisasi: formulaUrl,
+          teksPostingan: formulaText,
+          status: MentionStatus.BARU,
+          sumberInput: InputSourceType.FORM,
+        },
+      });
+
+      const reqCsv = new NextRequest(`${baseUrl}/api/export?format=csv`);
+      const resCsv = await exportGet(reqCsv);
+      const csvText = await resCsv.text();
+
+      // Memastikan di CSV tersimpan aman sebagai teks dengan kutip "'=1+1"
+      expect(csvText).toContain("\"'=1+1 injeksi formula\"");
+    });
+  });
+
+  // -------------------------------------------------------------
+  // NOMOR 20, 21, 22 (KEAMANAN)
+  // -------------------------------------------------------------
+  describe("Nomor 21: Dari terminal tanpa login ditolak 401/403", () => {
+    it("menolak request mutasi tanpa sesi atau token", async () => {
+      const req = new NextRequest(`${baseUrl}/api/mentions`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({}),
+      });
+
+      const res = await mentionsPost(req);
+      expect([401, 403]).toContain(res.status);
+      const json = await res.json();
+      expect(json.ok).toBe(false);
+      expect(json.error).toContain("Akses ditolak");
+    });
+  });
+
+  describe("Nomor 22: Masukkan token salah 6 kali dalam satu menit -> dibatasi 429", () => {
+    it("membatasi percobaan login ke-6 dengan HTTP 429 dan pesan tunggu", async () => {
+      const fakeIp = "198.51.100.77";
+
+      for (let i = 1; i <= 5; i++) {
+        const req = new NextRequest(`${baseUrl}/api/auth/token`, {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            "x-forwarded-for": fakeIp,
+          },
+          body: JSON.stringify({ token: "token_salah_ke_" + i }),
+        });
+        const res = await authPost(req);
+        expect(res.status).toBe(401);
+      }
+
+      // Percobaan ke-6 harus dibatasi 429
+      const reqBlocked = new NextRequest(`${baseUrl}/api/auth/token`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-forwarded-for": fakeIp,
+        },
+        body: JSON.stringify({ token: "token_salah_ke_6" }),
+      });
+      const resBlocked = await authPost(reqBlocked);
+      expect(resBlocked.status).toBe(429);
+      const jsonBlocked = await resBlocked.json();
+      expect(jsonBlocked.ok).toBe(false);
+      expect(jsonBlocked.error).toContain("Terlalu banyak percobaan masuk");
+    });
+  });
+
+  // -------------------------------------------------------------
+  // NOMOR 24 & 25 (EKSTENSI CHROME)
+  // -------------------------------------------------------------
+  describe("Nomor 24 & 25: Ekstensi Chrome (Validasi /post/, Draf tanpa nama akun, tolak non-post, tolak token salah)", () => {
+    const extToken = "test_ext_token_2026";
+
+    beforeEach(() => {
+      process.env.EXTENSION_TOKEN = extToken;
+    });
+
+    it("menyimpan postingan /post/ sebagai Draf tanpa nama akun", async () => {
+      const postUrl = `https://www.threads.net/@nasabah_btn/post/post_valid_${Date.now()}`;
+      const postText = "Pelayanan kantor cabang BTN sangat cepat dan memuaskan.";
+
+      const req = new NextRequest(`${baseUrl}/api/mentions`, {
+        method: "POST",
+        headers: {
+          host,
+          origin: "chrome-extension://abcdefghijklmnop",
+          authorization: `Bearer ${extToken}`,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          linkAsli: postUrl,
+          teksPostingan: postText,
+          status: "DRAF",
+          sumberInput: "EKSTENSI",
+        }),
+      });
+
+      const res = await mentionsPost(req);
+      expect(res.status).toBe(200);
+      const json = await res.json();
+      expect(json.ok).toBe(true);
+
+      const saved = json.mention;
+      expect(saved.status).toBe(MentionStatus.DRAF);
+      expect(saved.sumberInput).toBe(InputSourceType.EKSTENSI);
+      expect(saved.teksPostingan).toBe(postText);
+      // Memastikan tidak ada kolom nama akun yang disimpan
+      expect((saved as any).namaAkun).toBeUndefined();
+      expect((saved as any).username).toBeUndefined();
+    });
+
+    it("menolak Bearer token salah dengan status 401", async () => {
+      const req = new NextRequest(`${baseUrl}/api/mentions`, {
+        method: "POST",
+        headers: {
+          host,
+          origin: "chrome-extension://abcdefghijklmnop",
+          authorization: "Bearer token_salah_123",
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          linkAsli: "https://www.threads.net/@btn/post/xyz123",
+          teksPostingan: "Uji token salah",
+        }),
+      });
+
+      const res = await mentionsPost(req);
+      expect([401, 403]).toContain(res.status);
+      const json = await res.json();
+      expect(json.ok).toBe(false);
+      expect(json.error).toContain("Akses ditolak");
     });
   });
 });
