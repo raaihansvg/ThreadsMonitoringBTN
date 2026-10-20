@@ -157,6 +157,19 @@ export const QUESTION_INDICATORS = [
 ];
 
 /**
+ * Ungkapan sopan dalam bahasa Indonesia.
+ * Pada kalimat tanya, kata-kata ini merupakan tata krama dan BUKAN pujian,
+ * sehingga tidak dihitung sebagai sentimen positif.
+ */
+export const POLITE_WORDS = [
+  "terima kasih",
+  "terimakasih",
+  "makasih",
+  "mohon",
+  "tolong",
+];
+
+/**
  * Mencocokkan kata atau frasa dengan batasan kata yang ketat.
  * Mencegah substring di dalam kata lain salah cocok (misal 'kas' tidak cocok dengan 'bekas').
  */
@@ -234,32 +247,18 @@ export function analyzeFallback(
   const matchedQuestions = findMatches(normalizedText, QUESTION_INDICATORS);
   const isQuestion = hasQuestionMark || matchedQuestions.length > 0;
 
+  // Pada kalimat tanya, ungkapan sopan tidak dihitung sebagai sentimen positif
+  const effectivePositive = isQuestion
+    ? matchedPositive.filter((w) => !POLITE_WORDS.includes(w))
+    : matchedPositive;
+
   let sentimen: "POSITIF" | "NETRAL" | "NEGATIF" = "NETRAL";
-  if (matchedNegative.length > matchedPositive.length) {
+  if (matchedNegative.length > effectivePositive.length) {
     sentimen = "NEGATIF";
-  } else if (matchedPositive.length > matchedNegative.length) {
+  } else if (effectivePositive.length > matchedNegative.length) {
     sentimen = "POSITIF";
   } else {
     sentimen = "NETRAL";
-  }
-
-  // Kalimat tanya murni: bila teks memuat tanda tanya (?) atau kata tanya
-  // DAN tidak memuat kata negatif kuat, tetapkan sentimen "NETRAL" (bukan negatif),
-  // kecuali bila secara eksplisit memuat ungkapan terima kasih / apresiasi.
-  if (isQuestion && matchedNegative.length === 0) {
-    const hasGratitude = matchedPositive.some((w) =>
-      [
-        "terima kasih",
-        "terimakasih",
-        "makasih",
-        "alhamdulillah",
-        "bersyukur",
-        "apresiasi",
-      ].includes(w)
-    );
-    if (!hasGratitude) {
-      sentimen = "NETRAL";
-    }
   }
 
   // 3. Deteksi Kata Kunci Risiko & Prioritas

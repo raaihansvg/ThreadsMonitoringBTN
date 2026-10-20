@@ -35,8 +35,8 @@ describe("Analisis Cadangan (Kata Kunci) - Tahap 3F", () => {
     // Topik: cocok dengan kata kunci 'kpr' -> 'KPR BTN'
     expect(resB.topik).toBe("KPR BTN");
 
-    // Sentimen: memuat kata positif ('terima kasih') -> POSITIF
-    expect(resB.sentimen).toBe("POSITIF");
+    // Sentimen: kalimat tanya dengan ungkapan sopan 'terima kasih' (bukan pujian) -> NETRAL
+    expect(resB.sentimen).toBe("NETRAL");
 
     // Prioritas: bukan kasus risiko darurat -> RUTIN
     expect(resB.prioritas).toBe("RUTIN");
