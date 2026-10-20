@@ -11,6 +11,7 @@ import { validateThreadsUrl } from "@/lib/url";
 import { maskPii } from "@/lib/pii";
 import { createMentionSchema } from "@/lib/validation/schemas";
 import { selectTopic } from "@/lib/analysis/topicSelector";
+import { analyzeFallback } from "@/lib/analysis/fallbackAnalysis";
 import { triggerAlertsForMention } from "@/lib/alert/service";
 
 export const dynamic = "force-dynamic";
@@ -239,11 +240,13 @@ export async function POST(req: NextRequest) {
 
     // Tahap 3B: Draf tanpa teks TIDAK dianalisis
     if (!isEmptyText) {
+      const fallbackResult = analyzeFallback(safeText);
+
       safeHeadline = maskPii(
-        headline || safeText.slice(0, 80)
+        headline || fallbackResult.headline
       ).maskedText.slice(0, 100);
       safeRingkasan = maskPii(
-        ringkasan || safeText.slice(0, 300)
+        ringkasan || fallbackResult.ringkasan
       ).maskedText.slice(0, 400);
 
       // Aturan Penentuan Topik Otomatis jika topik belum dipilih atau "Lainnya"
@@ -253,12 +256,15 @@ export async function POST(req: NextRequest) {
         topik !== "Semua" &&
         topik !== "Semua Topik"
           ? topik
-          : selectTopic(safeText);
+          : fallbackResult.topik;
 
-      finalSentimen = sentimen || Sentiment.NETRAL;
-      finalPrioritas = prioritas || Priority.RUTIN;
-      finalKataKunci = Array.isArray(kataKunci) ? kataKunci : [];
-      finalPenyedia = penyediaAnalisis || "manual";
+      finalSentimen = sentimen || (fallbackResult.sentimen as Sentiment);
+      finalPrioritas = prioritas || (fallbackResult.prioritas as Priority);
+      finalKataKunci =
+        Array.isArray(kataKunci) && kataKunci.length > 0
+          ? kataKunci
+          : fallbackResult.kataKunci;
+      finalPenyedia = penyediaAnalisis || fallbackResult.penyedia;
     }
 
     // Aturan Otentikasi & Status (Tahap 1.7 & Tahap 3B):

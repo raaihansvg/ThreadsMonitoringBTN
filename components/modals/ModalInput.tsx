@@ -15,6 +15,7 @@ import {
   CheckCircle2,
   Sparkles,
 } from "lucide-react";
+import { analyzeFallback } from "@/lib/analysis/fallbackAnalysis";
 
 export function ModalInput() {
   const router = useRouter();
@@ -39,7 +40,7 @@ export function ModalInput() {
   // Form Fields
   const [url, setUrl] = useState("");
   const [postText, setPostText] = useState("");
-  const [topik, setTopik] = useState("BTN Mobile");
+  const [topik, setTopik] = useState("Lainnya");
   const [sentimen, setSentimen] = useState<"POSITIF" | "NETRAL" | "NEGATIF">(
     "NETRAL"
   );
@@ -48,7 +49,7 @@ export function ModalInput() {
   >("RUTIN");
   const [headline, setHeadline] = useState("");
   const [ringkasan, setRingkasan] = useState("");
-  const [kataKunciInput, setKataKunciInput] = useState("btn mobile, layanan");
+  const [kataKunciInput, setKataKunciInput] = useState("");
 
   // State Pratinjau FR-02 (Tahap 3A)
   const [isLoadingPreview, setIsLoadingPreview] = useState(false);
@@ -284,17 +285,17 @@ export function ModalInput() {
 
     setTimeout(() => {
       setIsAnalyzing(false);
-      // Auto-extract keywords and headline from real input without simulating fake text
+      // Analisis teks sungguhan menggunakan fungsi bersama
+      const analysis = analyzeFallback(masked);
+      setTopik(analysis.topik);
+      setSentimen(analysis.sentimen);
+      setPrioritas(analysis.prioritas);
+      setKataKunciInput(analysis.kataKunci.join(", "));
       if (!headline) {
-        const snippet = masked.slice(0, 80);
-        setHeadline(
-          snippet.length > 20
-            ? snippet
-            : `Perbincangan Nasabah Terkait ${topik}`
-        );
+        setHeadline(analysis.headline);
       }
       if (!ringkasan) {
-        setRingkasan(masked.slice(0, 350));
+        setRingkasan(analysis.ringkasan);
       }
     }, 600);
   };
