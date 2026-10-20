@@ -119,6 +119,6 @@ Akses aplikasi melalui peramban: `http://localhost:3000`.
 
 ### B. Menggunakan Ekstensi Chrome
 1. Buka `chrome://extensions` di Google Chrome, aktifkan **Developer mode**, klik **Load unpacked**, dan pilih folder `threadsMonitoringBtn/extension`.
-2. Buka popup ekstensi, pastikan alamat server `http://localhost:3000` dan masukkan token ekstensi yang ada di file `.env` (`btn_ext_secret_2026`). Token akan tersimpan otomatis.
+2. Buka popup ekstensi, pastikan alamat server `http://localhost:3000` dan masukkan token ekstensi yang ada di file `.env` (`<EXTENSION_TOKEN_DARI_ENV>`). Token akan tersimpan otomatis.
 3. Saat membuka postingan Threads (alamat memuat `/post/`), klik ikon ekstensi dan tekan tombol **Kirim sebagai Draf**.
 4. Buka menu `/draf` di web aplikasi untuk memeriksa, menyunting analisis, dan menyetujui postingan ke Dashboard utama.
