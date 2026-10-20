@@ -170,7 +170,7 @@ describe("Validasi Ekspor Laporan (FR-17, AC-08, Tahap 1.7)", () => {
 
     // 2. Tombol Cetak / Simpan PDF
     expect(html).toContain("Cetak / Simpan PDF");
-    expect(html).toContain("onclick=\"window.print()\"");
+    expect(html).toContain('onclick="window.print()"');
 
     // 3. Gaya cetak A4
     expect(html).toContain("@page { size: A4 landscape; margin: 12mm; }");

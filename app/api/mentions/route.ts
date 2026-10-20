@@ -10,7 +10,6 @@ import { requireOfficer, isBearerAuth } from "@/lib/auth/session";
 import { validateThreadsUrl } from "@/lib/url";
 import { maskPii } from "@/lib/pii";
 import { createMentionSchema } from "@/lib/validation/schemas";
-import { selectTopic } from "@/lib/analysis/topicSelector";
 import { analyzeFallback } from "@/lib/analysis/fallbackAnalysis";
 import { triggerAlertsForMention } from "@/lib/alert/service";
 

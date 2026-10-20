@@ -595,7 +595,9 @@ describe("Verifikasi Permintaan Pengujian (Nomor 12 s/d 25)", () => {
       });
 
       // A. Unduh CSV
-      const reqCsv = new NextRequest(`${baseUrl}/api/export?format=csv&includeSample=true`);
+      const reqCsv = new NextRequest(
+        `${baseUrl}/api/export?format=csv&includeSample=true`
+      );
       const resCsv = await exportGet(reqCsv);
       expect(resCsv.status).toBe(200);
       expect(resCsv.headers.get("content-type")).toContain("text/csv");
@@ -609,15 +611,21 @@ describe("Verifikasi Permintaan Pengujian (Nomor 12 s/d 25)", () => {
       expect(csvText).toContain("Postingan nyata BTN");
 
       // B. Unduh Excel (XLSX)
-      const reqXlsx = new NextRequest(`${baseUrl}/api/export?format=xlsx&includeSample=true`);
+      const reqXlsx = new NextRequest(
+        `${baseUrl}/api/export?format=xlsx&includeSample=true`
+      );
       const resXlsx = await exportGet(reqXlsx);
       expect(resXlsx.status).toBe(200);
-      expect(resXlsx.headers.get("content-type")).toContain("spreadsheetml.sheet");
+      expect(resXlsx.headers.get("content-type")).toContain(
+        "spreadsheetml.sheet"
+      );
       const arrayBuffer = await resXlsx.arrayBuffer();
       expect(arrayBuffer.byteLength).toBeGreaterThan(1000); // Berkas Excel valid
 
       // C. Unduh PDF / HTML Printable
-      const reqPdf = new NextRequest(`${baseUrl}/api/export?format=pdf&includeSample=true`);
+      const reqPdf = new NextRequest(
+        `${baseUrl}/api/export?format=pdf&includeSample=true`
+      );
       const resPdf = await exportGet(reqPdf);
       expect(resPdf.status).toBe(200);
       expect(resPdf.headers.get("content-type")).toContain("text/html");
@@ -651,7 +659,7 @@ describe("Verifikasi Permintaan Pengujian (Nomor 12 s/d 25)", () => {
       const csvText = await resCsv.text();
 
       // Memastikan di CSV tersimpan aman sebagai teks dengan kutip "'=1+1"
-      expect(csvText).toContain("\"'=1+1 injeksi formula\"");
+      expect(csvText).toContain('"\'=1+1 injeksi formula"');
     });
   });
 
@@ -720,7 +728,8 @@ describe("Verifikasi Permintaan Pengujian (Nomor 12 s/d 25)", () => {
 
     it("menyimpan postingan /post/ sebagai Draf tanpa nama akun", async () => {
       const postUrl = `https://www.threads.net/@nasabah_btn/post/post_valid_${Date.now()}`;
-      const postText = "Pelayanan kantor cabang BTN sangat cepat dan memuaskan.";
+      const postText =
+        "Pelayanan kantor cabang BTN sangat cepat dan memuaskan.";
 
       const req = new NextRequest(`${baseUrl}/api/mentions`, {
         method: "POST",

@@ -1,4 +1,8 @@
-import { selectTopic, CONFIGURED_TOPICS, TopicDefinition } from "./topicSelector";
+import {
+  selectTopic,
+  CONFIGURED_TOPICS,
+  TopicDefinition,
+} from "./topicSelector";
 
 export interface FallbackAnalysisResult {
   topik: string;
@@ -246,7 +250,9 @@ export function analyzeFallback(
 
   // 5. Headline & Ringkasan Proporsional
   const firstLine = cleanText.split("\n")[0] || cleanText;
-  const headline = firstLine.slice(0, 80).trim() || `Perbincangan Nasabah Terkait ${selectedTopic}`;
+  const headline =
+    firstLine.slice(0, 80).trim() ||
+    `Perbincangan Nasabah Terkait ${selectedTopic}`;
   const ringkasan = cleanText.slice(0, 300).trim();
 
   return {

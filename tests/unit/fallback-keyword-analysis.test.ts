@@ -3,7 +3,8 @@ import { analyzeFallback } from "@/lib/analysis/fallbackAnalysis";
 
 describe("Analisis Cadangan (Kata Kunci) - Tahap 3F", () => {
   it("Kasus A: KOK BISA UANG 17M LENYAP DI BANK BTN? SEKALI LAGI 17M WOIIII", () => {
-    const textA = "KOK BISA UANG 17M LENYAP DI BANK BTN? SEKALI LAGI 17M WOIIII";
+    const textA =
+      "KOK BISA UANG 17M LENYAP DI BANK BTN? SEKALI LAGI 17M WOIIII";
     const resA = analyzeFallback(textA);
 
     console.log("HASIL UJI KASUS A:", JSON.stringify(resA, null, 2));
@@ -24,7 +25,8 @@ describe("Analisis Cadangan (Kata Kunci) - Tahap 3F", () => {
   });
 
   it("Kasus B: boleh bagi info nya kak yg memilih kpp BTN daripada take over KPR bank lain?? terima kasih", () => {
-    const textB = "boleh bagi info nya kak yg memilih kpp BTN daripada take over KPR bank lain?? terima kasih";
+    const textB =
+      "boleh bagi info nya kak yg memilih kpp BTN daripada take over KPR bank lain?? terima kasih";
     const resB = analyzeFallback(textB);
 
     console.log("HASIL UJI KASUS B:", JSON.stringify(resB, null, 2));
@@ -45,7 +47,8 @@ describe("Analisis Cadangan (Kata Kunci) - Tahap 3F", () => {
   });
 
   it("Kasus C: Update terbaru BTN Mobile tampilannya makin modern dan responsif", () => {
-    const textC = "Update terbaru BTN Mobile tampilannya makin modern dan responsif";
+    const textC =
+      "Update terbaru BTN Mobile tampilannya makin modern dan responsif";
     const resC = analyzeFallback(textC);
 
     console.log("HASIL UJI KASUS C:", JSON.stringify(resC, null, 2));

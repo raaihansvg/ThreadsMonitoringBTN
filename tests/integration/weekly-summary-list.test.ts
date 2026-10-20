@@ -1,7 +1,12 @@
 import { describe, it, expect, beforeEach, afterAll } from "vitest";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { MentionStatus, InputSourceType, Priority, Sentiment } from "@prisma/client";
+import {
+  MentionStatus,
+  InputSourceType,
+  Priority,
+  Sentiment,
+} from "@prisma/client";
 import { GET as getDashboard } from "@/app/api/dashboard/route";
 import { getStartOfWIBWeek } from "@/lib/time";
 
@@ -31,7 +36,8 @@ describe("Weekly Summary 5 Important Mentions (Senin WIB s/d Hari Ini)", () => {
       data: {
         linkAsli: "https://threads.net/@user1/post/week_1",
         linkTernormalisasi: "https://threads.net/post/week_1",
-        teksPostingan: "Aplikasi BTN Mobile sangat membantu transaksi perumahan hari ini.",
+        teksPostingan:
+          "Aplikasi BTN Mobile sangat membantu transaksi perumahan hari ini.",
         sumberInput: InputSourceType.FORM,
         status: MentionStatus.BARU,
         sentimen: Sentiment.POSITIF,
@@ -48,7 +54,8 @@ describe("Weekly Summary 5 Important Mentions (Senin WIB s/d Hari Ini)", () => {
       data: {
         linkAsli: "https://threads.net/@user2/post/week_2",
         linkTernormalisasi: "https://threads.net/post/week_2",
-        teksPostingan: "Antrean kantor cabang sangat panjang dan teller lambat melayani.",
+        teksPostingan:
+          "Antrean kantor cabang sangat panjang dan teller lambat melayani.",
         sumberInput: InputSourceType.FORM,
         status: MentionStatus.BARU,
         sentimen: Sentiment.NEGATIF,
@@ -65,7 +72,8 @@ describe("Weekly Summary 5 Important Mentions (Senin WIB s/d Hari Ini)", () => {
       data: {
         linkAsli: "https://threads.net/@user3/post/week_3",
         linkTernormalisasi: "https://threads.net/post/week_3",
-        teksPostingan: "KOK BISA UANG 17M LENYAP DI BANK BTN? SEKALI LAGI 17M WOIIII",
+        teksPostingan:
+          "KOK BISA UANG 17M LENYAP DI BANK BTN? SEKALI LAGI 17M WOIIII",
         sumberInput: InputSourceType.FORM,
         status: MentionStatus.BARU,
         sentimen: Sentiment.NEGATIF,
@@ -77,7 +85,9 @@ describe("Weekly Summary 5 Important Mentions (Senin WIB s/d Hari Ini)", () => {
     });
     createdIds.push(m3.id);
 
-    const req = new NextRequest("http://localhost:3000/api/dashboard?includeSample=false");
+    const req = new NextRequest(
+      "http://localhost:3000/api/dashboard?includeSample=false"
+    );
     const res = await getDashboard(req);
     const data = await res.json();
 
@@ -91,7 +101,9 @@ describe("Weekly Summary 5 Important Mentions (Senin WIB s/d Hari Ini)", () => {
     expect(items[0].id).toBe(m3.id);
     expect(items[0].headline).toBe("Uang 17M Lenyap di Bank BTN");
     // Karena summary sama dengan headline, summary harus fallback ke 200 karakter teks
-    expect(items[0].summary).toBe("KOK BISA UANG 17M LENYAP DI BANK BTN? SEKALI LAGI 17M WOIIII");
+    expect(items[0].summary).toBe(
+      "KOK BISA UANG 17M LENYAP DI BANK BTN? SEKALI LAGI 17M WOIIII"
+    );
 
     // Item kedua HARUS yang bersentimen NEGATIF (m2)
     expect(items[1].id).toBe(m2.id);
