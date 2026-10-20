@@ -112,9 +112,7 @@ describe("Analisis Cadangan (Kata Kunci) - Tahap 3F", () => {
   });
 
   it("Kasus f: 'pelayanan di cabang ramah bangeeet, mantaaap' -> POSITIF", () => {
-    const res = analyzeFallback(
-      "pelayanan di cabang ramah bangeeet, mantaaap"
-    );
+    const res = analyzeFallback("pelayanan di cabang ramah bangeeet, mantaaap");
     expect(res.sentimen).toBe("POSITIF");
   });
 
