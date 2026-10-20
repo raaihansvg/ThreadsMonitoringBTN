@@ -6,7 +6,12 @@ import {
   MentionStatus,
   InputSourceType,
 } from "@prisma/client";
-import { requireOfficer, isBearerAuth } from "@/lib/auth/session";
+import {
+  requireOfficer,
+  isBearerAuth,
+  checkMentionRateLimit,
+  recordMentionAttempt,
+} from "@/lib/auth/session";
 import { validateThreadsUrl } from "@/lib/url";
 import { maskPii } from "@/lib/pii";
 import { createMentionSchema } from "@/lib/validation/schemas";
@@ -133,10 +138,47 @@ export async function GET(req: NextRequest) {
   }
 }
 
+function getMentionRateLimitKey(req: NextRequest): string {
+  const sessionCookie = req.cookies.get("petugas_session")?.value;
+  if (sessionCookie) {
+    return `session:${sessionCookie.slice(-24)}`;
+  }
+  const authHeader = req.headers.get("authorization");
+  const extHeader = req.headers.get("x-extension-token");
+  const token =
+    extHeader ||
+    (authHeader?.startsWith("Bearer ") ? authHeader.slice(7).trim() : null);
+  if (token) {
+    return `token:${token.slice(-24)}`;
+  }
+  const forwardedFor = req.headers.get("x-forwarded-for");
+  const ip = forwardedFor ? forwardedFor.split(",")[0].trim() : "127.0.0.1";
+  return `ip:${ip}`;
+}
+
 export async function POST(req: NextRequest) {
   try {
     const authError = await requireOfficer(req, { allowBearer: true });
     if (authError) return authError;
+
+    // Rate Limiting: 60 pembuatan mention per menit per sesi/token (mendukung burst 50 item impor)
+    const rateLimitKey = getMentionRateLimitKey(req);
+    const rateLimit = checkMentionRateLimit(rateLimitKey);
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: `Terlalu banyak permintaan pembuatan mention. Silakan tunggu ${rateLimit.retryAfterSeconds} detik.`,
+        },
+        {
+          status: 429,
+          headers: {
+            "Retry-After": String(rateLimit.retryAfterSeconds || 60),
+          },
+        }
+      );
+    }
+    recordMentionAttempt(rateLimitKey);
 
     const isBearer = isBearerAuth(req);
 
@@ -144,6 +186,16 @@ export async function POST(req: NextRequest) {
     if (!rawBody) {
       return NextResponse.json(
         { ok: false, error: "Bad Request: Body JSON tidak boleh kosong." },
+        { status: 400 }
+      );
+    }
+
+    if (Array.isArray(rawBody) && rawBody.length > 50) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: "Batas maksimal impor massal adalah 50 item sekaligus.",
+        },
         { status: 400 }
       );
     }

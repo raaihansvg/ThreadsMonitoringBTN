@@ -183,6 +183,58 @@ export function resetLoginRateLimit(ip: string): void {
 }
 
 /**
+ * Pembatasan frekuensi pembuatan mention POST /api/mentions
+ * (In-Memory Sliding Window 60x per menit per sesi/token/IP).
+ * Mendukung burst impor massal sah hingga 50 item sekaligus (FR-10).
+ */
+const mentionRateLimitMap = new Map<string, RateLimitBucket>();
+
+export function checkMentionRateLimit(key: string): {
+  allowed: boolean;
+  remaining: number;
+  retryAfterSeconds?: number;
+} {
+  const now = Date.now();
+  const windowMs = 60 * 1000;
+  const maxAttempts = 60;
+
+  const record = mentionRateLimitMap.get(key) || { attempts: [] };
+  record.attempts = record.attempts.filter((ts) => now - ts < windowMs);
+
+  if (record.attempts.length >= maxAttempts) {
+    const oldest = record.attempts[0];
+    const retryAfterSeconds = Math.ceil((oldest + windowMs - now) / 1000);
+    return {
+      allowed: false,
+      remaining: 0,
+      retryAfterSeconds: Math.max(1, retryAfterSeconds),
+    };
+  }
+
+  return {
+    allowed: true,
+    remaining: maxAttempts - record.attempts.length,
+  };
+}
+
+export function recordMentionAttempt(key: string): void {
+  const now = Date.now();
+  const windowMs = 60 * 1000;
+  const record = mentionRateLimitMap.get(key) || { attempts: [] };
+  record.attempts = record.attempts.filter((ts) => now - ts < windowMs);
+  record.attempts.push(now);
+  mentionRateLimitMap.set(key, record);
+}
+
+export function resetMentionRateLimit(key?: string): void {
+  if (key) {
+    mentionRateLimitMap.delete(key);
+  } else {
+    mentionRateLimitMap.clear();
+  }
+}
+
+/**
  * Proteksi CSRF: membandingkan Origin/Referer dengan Host aplikasi
  * untuk semua metode mutasi (POST, PUT, PATCH, DELETE).
  */
