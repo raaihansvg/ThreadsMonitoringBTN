@@ -16,4 +16,12 @@ export default function globalSetup() {
   });
 
   process.env.DATABASE_URL = testUrl;
+
+  if (
+    !process.env.SESSION_SECRET ||
+    process.env.SESSION_SECRET.trim().length < 32
+  ) {
+    process.env.SESSION_SECRET =
+      "test-session-secret-at-least-32-characters-long-key-2026";
+  }
 }

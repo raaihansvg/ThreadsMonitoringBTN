@@ -14,6 +14,14 @@ import { resolveTestDatabaseUrl } from "./test-db-guard";
 const testUrl = resolveTestDatabaseUrl();
 process.env.DATABASE_URL = testUrl;
 
+if (
+  !process.env.SESSION_SECRET ||
+  process.env.SESSION_SECRET.trim().length < 32
+) {
+  process.env.SESSION_SECRET =
+    "test-session-secret-at-least-32-characters-long-key-2026";
+}
+
 const cleaner = new PrismaClient({ datasourceUrl: testUrl });
 
 const TABLES = [

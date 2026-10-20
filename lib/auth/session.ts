@@ -8,11 +8,16 @@ export interface SessionPayload {
   role: "petugas";
 }
 
-const DEFAULT_SECRET = "btn-threads-monitoring-session-secret-salt-2026";
 const SESSION_COOKIE_NAME = "petugas_session";
 
-function getSessionSecret(): string {
-  return process.env.SESSION_SECRET || DEFAULT_SECRET;
+export function getSessionSecret(): string {
+  const secret = process.env.SESSION_SECRET?.trim();
+  if (!secret || secret.length < 32) {
+    throw new Error(
+      "SESSION_SECRET wajib dikonfigurasi minimal 32 karakter."
+    );
+  }
+  return secret;
 }
 
 /**
@@ -108,8 +113,12 @@ export function verifyInputToken(
 ): boolean {
   if (!input || !serverToken) return false;
 
-  const a = Buffer.from(input.trim(), "utf-8");
-  const b = Buffer.from(serverToken.trim(), "utf-8");
+  const trimmedInput = input.trim();
+  const trimmedServer = serverToken.trim();
+  if (!trimmedInput || !trimmedServer) return false;
+
+  const a = Buffer.from(trimmedInput, "utf-8");
+  const b = Buffer.from(trimmedServer, "utf-8");
 
   // timingSafeEqual mewajibkan panjang buffer sama persis
   if (a.length !== b.length) {
