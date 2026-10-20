@@ -69,8 +69,7 @@ describe("Penyamaran Data Pribadi / PII (AC-05)", () => {
   });
 
   it("menyamarkan nomor kartu dengan tetap menjaga keutuhan teks di sekitarnya", () => {
-    const input =
-      "Nomor kartu saya 4000 1234 5678 9010 mohon diblokir";
+    const input = "Nomor kartu saya 4000 1234 5678 9010 mohon diblokir";
     const result = maskPii(input);
     expect(result.hasPii).toBe(true);
     expect(result.maskedText).toBe(

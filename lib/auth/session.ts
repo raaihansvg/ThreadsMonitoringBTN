@@ -13,9 +13,7 @@ const SESSION_COOKIE_NAME = "petugas_session";
 export function getSessionSecret(): string {
   const secret = process.env.SESSION_SECRET?.trim();
   if (!secret || secret.length < 32) {
-    throw new Error(
-      "SESSION_SECRET wajib dikonfigurasi minimal 32 karakter."
-    );
+    throw new Error("SESSION_SECRET wajib dikonfigurasi minimal 32 karakter.");
   }
   return secret;
 }

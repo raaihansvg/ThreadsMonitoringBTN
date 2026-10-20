@@ -189,8 +189,12 @@ describe("Validasi Ekspor Laporan (FR-17, AC-08, Tahap 1.7)", () => {
 
     // 6. Header keamanan
     expect(res.headers.get("x-content-type-options")).toBe("nosniff");
-    expect(res.headers.get("content-security-policy")).toContain("default-src 'none'");
-    expect(res.headers.get("content-security-policy")).toContain("script-src 'nonce-");
+    expect(res.headers.get("content-security-policy")).toContain(
+      "default-src 'none'"
+    );
+    expect(res.headers.get("content-security-policy")).toContain(
+      "script-src 'nonce-"
+    );
 
     // 7. DRAF tidak disertakan dalam pencarian DB
     const queryArgs = (prisma.mention.findMany as any).mock.calls[0][0];
@@ -246,14 +250,22 @@ describe("Validasi Ekspor Laporan (FR-17, AC-08, Tahap 1.7)", () => {
 
     // Pastikan tag berbahaya di-escape
     expect(html).not.toContain("<script>alert('topik-xss')</script>");
-    expect(html).toContain("&lt;script&gt;alert(&#39;topik-xss&#39;)&lt;/script&gt;");
+    expect(html).toContain(
+      "&lt;script&gt;alert(&#39;topik-xss&#39;)&lt;/script&gt;"
+    );
     expect(html).not.toContain("<img src=x onerror=alert('headline-xss')>");
-    expect(html).toContain("&lt;img src=x onerror=alert(&#39;headline-xss&#39;)&gt;");
-    expect(html).toContain("&lt;b&gt;Teks ringkasan tebal&lt;/b&gt; &amp; &#39;quote&#39;");
+    expect(html).toContain(
+      "&lt;img src=x onerror=alert(&#39;headline-xss&#39;)&gt;"
+    );
+    expect(html).toContain(
+      "&lt;b&gt;Teks ringkasan tebal&lt;/b&gt; &amp; &#39;quote&#39;"
+    );
 
     // Pastikan parameter query di-escape
     expect(html).not.toContain("<script>alert('param')</script>");
-    expect(html).toContain("&lt;script&gt;alert(&#39;param&#39;)&lt;/script&gt;");
+    expect(html).toContain(
+      "&lt;script&gt;alert(&#39;param&#39;)&lt;/script&gt;"
+    );
 
     // Pastikan skema non-https (javascript:) tidak menjadi atribut href
     expect(html).not.toContain('href="javascript:');

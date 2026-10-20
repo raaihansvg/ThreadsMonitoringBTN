@@ -19,9 +19,7 @@ export interface FallbackAnalysisResult {
  * Contoh: "woiiii" -> "woi", "mantaaap" -> "mantap", "russsaaak" -> "rusak".
  */
 export function normalizeText(text: string): string {
-  return (text || "")
-    .toLowerCase()
-    .replace(/(.)\1{2,}/g, "$1");
+  return (text || "").toLowerCase().replace(/(.)\1{2,}/g, "$1");
 }
 
 /**
@@ -200,7 +198,10 @@ export function deduplicateKeywords(keywords: string[]): string[] {
   for (const kw of sorted) {
     const isSub = result.some((longer) => {
       const escaped = kw.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-      const regex = new RegExp(`(^|[^a-zA-Z0-9])${escaped}([^a-zA-Z0-9]|$)`, "i");
+      const regex = new RegExp(
+        `(^|[^a-zA-Z0-9])${escaped}([^a-zA-Z0-9]|$)`,
+        "i"
+      );
       return regex.test(longer);
     });
     if (!isSub) {
