@@ -2,10 +2,10 @@
 ## BTN Threads Monitoring — Social Listening & Analytics Dashboard
 
 **Tanggal Laporan**: 20 Oktober 2026  
-**Cabang Git Aktif**: `tahap-3e-koreksi`  
-**Status Repositori**: Sinkron penuh dengan remote (`https://github.com/raaihansvg/ThreadsMonitoringBTN.git`)  
+**Cabang Git Aktif**: `tahap-3f-perbaikan` (bercabang dari commit `05edab7` pada `tahap-3e-koreksi`)  
+**Status Repositori**: Cabang perbaikan pengujian manual, working tree bersih.  
 **Status Basis Data**: Bersih (*Working tree clean*), database pengembangan aman utuh.  
-**Hasil Uji Otomatis**: **26 Berkas Pengujian Lolos, 158 Tests Passed (100%)**
+**Hasil Uji Otomatis**: **30 Berkas Pengujian Lolos, 167 Tests Passed (100%)**
 
 ---
 
@@ -53,15 +53,35 @@ Seluruh pengujian fungsional dan keamanan telah diverifikasi secara otomatis dan
 
 ---
 
-## 3. Hasil Verifikasi Kode & Pengujian Sistem
+## 3. Hasil Perbaikan Tahap 3F (Evaluasi Uji Manual)
+
+Pada Tahap 3F, sistem disempurnakan berdasarkan 5 temuan uji manual tanpa menambah fitur di luar cakupan:
+
+1. **Lencana Draf & Alert di Sidebar**: Memakai parameter `includeSample` yang sama dengan toggle Data Contoh. Saat data contoh dinonaktifkan, lencana bernilai 0 bila tidak ada data nyata.
+2. **Kartu 4 Dashboard (Distribusi Topik)**: Menghilangkan duplikasi baris "Lainnya", menjamin React key unik, dan menjumlahkan seluruh baris sama persis dengan `totalMentions`.
+3. **Ringkasan Mingguan**: Menjadi daftar maksimal 5 mention penting pekan berjalan (Senin WIB s/d sekarang) berurutan `PERLU_PERHATIAN` → `NEGATIF` → terbaru, dengan format `Headline Post: ...` & `Summary Post: ...`, tombol salin seluruh daftar, dan fallback 200 karakter bila ringkasan kosong/identik dengan headline.
+4. **Ekspor PDF Mandiri**: Tombol ekspor membuka tab baru ke `/api/export?format=pdf` yang menampilkan dokumen siap cetak A4 landscape dengan kop surat BTN, tanggal cetak, filter aktif, metrik angka, dan tombol cetak tanpa antarmuka aplikasi.
+5. **Analisis Cadangan (Kata Kunci) Bersama**: Satu fungsi terpadu `analyzeFallback` dipakai bersama oleh klien dan server untuk membaca teks asli, mencocokkan topik via `topicSelector`, menghitung leksikon sentimen bahasa Indonesia, mendeteksi kata kunci risiko untuk prioritas `PERLU_PERHATIAN`, dan mengekstrak kata kunci nyata.
+
+### Bukti Hasil Analisis 3 Kasus Teks:
+* **Kasus A (`"KOK BISA UANG 17M LENYAP DI BANK BTN? SEKALI LAGI 17M WOIIII"`):**  
+  Topik: `"Lainnya"`, Sentimen: `"NEGATIF"`, Prioritas: `"PERLU_PERHATIAN"`, Kata Kunci: `["lenyap", "17m", "bank btn", "woi", "woii", "woiii", "woiiii"]`
+* **Kasus B (`"boleh bagi info nya kak yg memilih kpp BTN daripada take over KPR bank lain?? terima kasih"`):**  
+  Topik: `"KPR BTN"`, Sentimen: `"POSITIF"`, Prioritas: `"RUTIN"`, Kata Kunci: `["kpr", "terima kasih", "memilih", "btn"]`
+* **Kasus C (`"Update terbaru BTN Mobile tampilannya makin modern dan responsif"`):**  
+  Topik: `"BTN Mobile"`, Sentimen: `"POSITIF"`, Prioritas: `"RUTIN"`, Kata Kunci: `["btn mobile", "mobile", "modern", "responsif", "btn"]`
+
+---
+
+## 4. Hasil Verifikasi Kode & Pengujian Sistem
 
 Seluruh pemeriksaan integritas kode proyek dijalankan dan diverifikasi:
 
 1. **Suite Pengujian Unit & Integrasi (`npm test`)**:
    ```text
-   Test Files  26 passed (26)
-        Tests  158 passed (158)
-     Duration  21.85s (database: threads_monitoring_test)
+   Test Files  30 passed (30)
+        Tests  167 passed (167)
+     Duration  16.12s (database: threads_monitoring_test)
    ```
 2. **Pemeriksaan Linter (`npm run lint`)**:
    ```text
@@ -73,7 +93,7 @@ Seluruh pemeriksaan integritas kode proyek dijalankan dan diverifikasi:
    ```
 4. **Verifikasi Build Produksi (`npm run build`)**:
    ```text
-   ✓ Compiled successfully
+   ✓ Compiled successfully in 4.5s
    ✓ Generating static pages (8/8)
    ✓ Finalizing page optimization
    ```
@@ -85,7 +105,7 @@ Seluruh pemeriksaan integritas kode proyek dijalankan dan diverifikasi:
 
 ---
 
-## 4. Panduan Operasional Singkat
+## 5. Panduan Operasional Singkat
 
 ### A. Menjalankan Aplikasi Web
 ```bash
