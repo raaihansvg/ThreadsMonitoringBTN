@@ -93,4 +93,46 @@ describe("Analisis Cadangan (Kata Kunci) - Tahap 3F", () => {
     expect(res.prioritas).toBe("RUTIN");
     expect(res.prioritas).not.toBe("PERLU_PERHATIAN");
   });
+
+  // Uji Generalisasi Formal (d sampai i)
+  it("Kasus d: 'saldo 50jt raib dari rekening btn, cs ga bisa dihubungi' -> NEGATIF, PERLU_PERHATIAN", () => {
+    const res = analyzeFallback(
+      "saldo 50jt raib dari rekening btn, cs ga bisa dihubungi"
+    );
+    expect(res.sentimen).toBe("NEGATIF");
+    expect(res.prioritas).toBe("PERLU_PERHATIAN");
+  });
+
+  it("Kasus e: 'ada yg tau syarat kpr subsidi btn sekarang apa aja?' -> NETRAL, RUTIN", () => {
+    const res = analyzeFallback(
+      "ada yg tau syarat kpr subsidi btn sekarang apa aja?"
+    );
+    expect(res.sentimen).toBe("NETRAL");
+    expect(res.prioritas).toBe("RUTIN");
+  });
+
+  it("Kasus f: 'pelayanan di cabang ramah bangeeet, mantaaap' -> POSITIF", () => {
+    const res = analyzeFallback(
+      "pelayanan di cabang ramah bangeeet, mantaaap"
+    );
+    expect(res.sentimen).toBe("POSITIF");
+  });
+
+  it("Kasus g: 'baru beli laptop pakai kpr btn' -> kata kunci tidak memuat 'top'", () => {
+    const res = analyzeFallback("baru beli laptop pakai kpr btn");
+    expect(res.kataKunci).not.toContain("top");
+  });
+
+  it("Kasus h: 'aplikasinya mantap banget ya? makasih' -> POSITIF", () => {
+    const res = analyzeFallback("aplikasinya mantap banget ya? makasih");
+    expect(res.sentimen).toBe("POSITIF");
+  });
+
+  it("Kasus i: 'kenapa saldo saya hilang? tolong dibantu makasih' -> NEGATIF, PERLU_PERHATIAN", () => {
+    const res = analyzeFallback(
+      "kenapa saldo saya hilang? tolong dibantu makasih"
+    );
+    expect(res.sentimen).toBe("NEGATIF");
+    expect(res.prioritas).toBe("PERLU_PERHATIAN");
+  });
 });
