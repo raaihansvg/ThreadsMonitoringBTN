@@ -15,13 +15,19 @@ import {
 
 export function Sidebar() {
   const pathname = usePathname();
-  const { role, openInputModal, setTokenModalOpen, refreshTrigger } = useApp();
+  const {
+    role,
+    openInputModal,
+    setTokenModalOpen,
+    refreshTrigger,
+    showSampleData,
+  } = useApp();
 
   const [draftCount, setDraftCount] = useState<number>(0);
   const [unreadAlerts, setUnreadAlerts] = useState<number>(0);
 
   useEffect(() => {
-    fetch("/api/drafts")
+    fetch(`/api/drafts?includeSample=${showSampleData}`)
       .then((res) => res.json())
       .then((data) => {
         if (data.ok && Array.isArray(data.drafts)) {
@@ -30,7 +36,7 @@ export function Sidebar() {
       })
       .catch(() => setDraftCount(0));
 
-    fetch("/api/alerts?filter=unread")
+    fetch(`/api/alerts?filter=unread&includeSample=${showSampleData}`)
       .then((res) => res.json())
       .then((data) => {
         if (data.ok && Array.isArray(data.alerts)) {
@@ -38,7 +44,7 @@ export function Sidebar() {
         }
       })
       .catch(() => setUnreadAlerts(0));
-  }, [refreshTrigger]);
+  }, [refreshTrigger, showSampleData]);
 
   const navItems = [
     {
