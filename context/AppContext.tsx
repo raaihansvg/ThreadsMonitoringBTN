@@ -8,6 +8,8 @@ import React, {
   ReactNode,
 } from "react";
 
+import { getPresetDateRanges } from "@/lib/time";
+
 export type Role = "penonton" | "petugas";
 export type Granularity = "Harian" | "Mingguan";
 
@@ -15,6 +17,11 @@ export interface DateRange {
   startDate: string;
   endDate: string;
   label: string;
+}
+
+export interface ToastInfo {
+  message: string;
+  type?: "success" | "info" | "error";
 }
 
 interface AppContextType {
@@ -43,13 +50,31 @@ interface AppContextType {
   // Data refresh trigger
   refreshTrigger: number;
   triggerRefresh: () => void;
+  // Toast notification
+  toast: ToastInfo | null;
+  showToast: (message: string, type?: "success" | "info" | "error") => void;
+  // Dialog Konfirmasi Aksesibel (Tahap 3E)
+  confirmDialogState: ConfirmState | null;
+  confirmDialog: (options: ConfirmOptions) => Promise<boolean>;
+  closeConfirmDialog: (result: boolean) => void;
 }
 
-const defaultDateRange: DateRange = {
-  startDate: "2026-09-17T00:00:00.000Z",
-  endDate: "2026-10-17T23:59:59.999Z",
-  label: "30 Hari Terakhir (17 Sep - 17 Okt 2026)",
-};
+export interface ConfirmOptions {
+  title: string;
+  message: string;
+  confirmLabel?: string;
+  cancelLabel?: string;
+  variant?: "primary" | "danger";
+}
+
+export interface ConfirmState {
+  isOpen: boolean;
+  options: ConfirmOptions;
+  resolve: (value: boolean) => void;
+  triggerElement: HTMLElement | null;
+}
+
+const defaultDateRange: DateRange = getPresetDateRanges()[2];
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
@@ -78,6 +103,49 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const triggerRefresh = () => setRefreshTrigger((prev) => prev + 1);
+
+  // Toast notification
+  const [toast, setToast] = useState<ToastInfo | null>(null);
+  const showToast = (
+    message: string,
+    type: "success" | "info" | "error" = "success"
+  ) => {
+    setToast({ message, type });
+    setTimeout(() => {
+      setToast(null);
+    }, 3500);
+  };
+
+  // Dialog Konfirmasi Aksesibel (Tahap 3E)
+  const [confirmDialogState, setConfirmDialogState] =
+    useState<ConfirmState | null>(null);
+
+  const confirmDialog = (options: ConfirmOptions): Promise<boolean> => {
+    return new Promise<boolean>((resolve) => {
+      const trigger = (
+        typeof document !== "undefined" ? document.activeElement : null
+      ) as HTMLElement | null;
+      setConfirmDialogState({
+        isOpen: true,
+        options,
+        resolve,
+        triggerElement: trigger,
+      });
+    });
+  };
+
+  const closeConfirmDialog = (result: boolean) => {
+    if (confirmDialogState) {
+      confirmDialogState.resolve(result);
+      const trigger = confirmDialogState.triggerElement;
+      if (trigger && typeof trigger.focus === "function") {
+        setTimeout(() => {
+          trigger.focus();
+        }, 10);
+      }
+      setConfirmDialogState(null);
+    }
+  };
 
   // Check initial session
   useEffect(() => {
@@ -155,6 +223,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setSelectedTopic,
         refreshTrigger,
         triggerRefresh,
+        toast,
+        showToast,
+        confirmDialogState,
+        confirmDialog,
+        closeConfirmDialog,
       }}
     >
       {children}

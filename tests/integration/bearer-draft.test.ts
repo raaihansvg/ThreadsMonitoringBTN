@@ -96,6 +96,40 @@ describe("Enforcement Otentikasi Bearer Token (FR-09, AC-06, Tahap 1.8)", () => 
       expect(savedData.sumberInput).toBe("EKSTENSI");
     });
 
+    it("mengizinkan permintaan dari origin chrome-extension:// dengan Bearer EXTENSION_TOKEN", async () => {
+      (prisma.mention.findUnique as any).mockResolvedValue(null);
+      (prisma.mention.create as any).mockImplementation((args: any) => {
+        return Promise.resolve({
+          id: "m-chrome-ext-1",
+          ...args.data,
+          waktuDitemukan: new Date(),
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        });
+      });
+
+      const req = new NextRequest(`${baseUrl}/api/mentions`, {
+        method: "POST",
+        headers: {
+          host,
+          origin: "chrome-extension://abcdefghijklmnop",
+          authorization: `Bearer ${extensionToken}`,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          linkAsli: "https://www.threads.com/@user/post/ext_test_123",
+          teksPostingan: "Uji postingan Threads dari ekstensi Chrome.",
+          status: "DRAF",
+          sumberInput: "EKSTENSI",
+        }),
+      });
+
+      const res = await mentionsPost(req);
+      expect([200, 201]).toContain(res.status);
+      const json = await res.json();
+      expect(json.ok).toBe(true);
+    });
+
     it("MENOLAK INPUT_TOKEN sebagai Bearer token pada POST /api/mentions (harus 401)", async () => {
       const req = new NextRequest(`${baseUrl}/api/mentions`, {
         method: "POST",

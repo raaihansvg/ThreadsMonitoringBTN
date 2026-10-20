@@ -4,6 +4,8 @@ import { MentionStatus, InputSourceType } from "@prisma/client";
 import { requireOfficer } from "@/lib/auth/session";
 import { draftActionSchema } from "@/lib/validation/schemas";
 import { maskPii } from "@/lib/pii";
+import { triggerAlertsForMention } from "@/lib/alert/service";
+import { analyzeFallback } from "@/lib/analysis/fallbackAnalysis";
 
 export const dynamic = "force-dynamic";
 
@@ -115,12 +117,26 @@ export async function POST(req: NextRequest) {
         }
       }
 
+      const fallbackResult = analyzeFallback(safeText);
+
       // Bila headline/ringkasan masih kosong setelah teks diisi, turunkan secara otomatis
       if (!sanitizedEdits.headline && !draft.headline) {
-        sanitizedEdits.headline = safeText.slice(0, 80);
+        sanitizedEdits.headline = fallbackResult.headline;
       }
       if (!sanitizedEdits.ringkasan && !draft.ringkasan) {
-        sanitizedEdits.ringkasan = safeText.slice(0, 300);
+        sanitizedEdits.ringkasan = fallbackResult.ringkasan;
+      }
+      if (
+        !sanitizedEdits.topik &&
+        (!draft.topik || draft.topik === "Lainnya")
+      ) {
+        sanitizedEdits.topik = fallbackResult.topik;
+      }
+      if (!sanitizedEdits.sentimen && !draft.sentimen) {
+        sanitizedEdits.sentimen = fallbackResult.sentimen;
+      }
+      if (!sanitizedEdits.prioritas && !draft.prioritas) {
+        sanitizedEdits.prioritas = fallbackResult.prioritas;
       }
 
       const updated = await prisma.mention.update({
@@ -131,6 +147,17 @@ export async function POST(req: NextRequest) {
           dikoreksiManual: true,
         },
       });
+
+      // Pemicu Alert Nyata untuk draf yang disetujui (Tahap 3D)
+      await triggerAlertsForMention({
+        id: updated.id,
+        topik: updated.topik,
+        prioritas: updated.prioritas,
+        sentimen: updated.sentimen,
+        sumberInput: updated.sumberInput,
+        tanggalDitemukan: updated.tanggalDitemukan,
+      });
+
       return NextResponse.json({
         ok: true,
         message: "Draf disetujui ke Dashboard.",

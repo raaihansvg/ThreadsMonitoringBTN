@@ -9,6 +9,7 @@ vi.mock("@/lib/prisma", () => {
       mention: {
         create: vi.fn(),
         findUnique: vi.fn(),
+        findMany: vi.fn().mockResolvedValue([]),
         update: vi.fn(),
         count: vi.fn(),
       },
@@ -16,7 +17,13 @@ vi.mock("@/lib/prisma", () => {
         findMany: vi.fn().mockResolvedValue([]),
       },
       alert: {
-        create: vi.fn(),
+        create: vi.fn().mockResolvedValue({ id: "mock-alert-1" }),
+        findFirst: vi.fn().mockResolvedValue(null),
+        upsert: vi.fn().mockResolvedValue({ id: "mock-alert-1" }),
+      },
+      systemConfig: {
+        findUnique: vi.fn().mockResolvedValue(null),
+        findMany: vi.fn().mockResolvedValue([]),
       },
     },
   };

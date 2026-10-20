@@ -75,14 +75,17 @@ model Topic {
 }
 
 model Alert {
-  id            String    @id @default(cuid())
+  id            String          @id @default(cuid())
   jenis         AlertType
   topik         String?
   periode       String?
   jumlah        Int
   ambangDipakai Int?
-  dibaca        Boolean   @default(false)
-  dibuatPada    DateTime  @default(now())
+  dibaca        Boolean         @default(false)
+  sumberInput   InputSourceType
+  dibuatPada    DateTime        @default(now())
+
+  @@unique([jenis, topik, periode, sumberInput])
 }
 
 model ImportBatch {

@@ -1,7 +1,7 @@
 import React from "react";
 import Link from "next/link";
 
-interface TopicStat {
+export interface TopicStat {
   nama: string;
   count: number;
   percentage: number;
@@ -17,28 +17,110 @@ interface Card4Props {
   unreadAlertsCount: number;
 }
 
+/**
+ * Mengagregasi data topik untuk Kartu 4:
+ * 1. Menggabungkan topik dengan nama yang sama (duplikat nama dijumlahkan).
+ * 2. Memisahkan "Lainnya" dari topik bernama spesifik.
+ * 3. Menampilkan maksimal 3 topik spesifik teratas.
+ * 4. Menggabungkan sisa topik (ke-4 dst) bersama seluruh entri "Lainnya" menjadi TEPAT SATU "Lainnya".
+ * 5. Menjamin key unik dan total hitungan sama persis dengan totalMentions.
+ */
+export function aggregateTopicsForCard4(
+  topicsBreakdown: TopicStat[] = [],
+  totalMentions: number
+): TopicStat[] {
+  // 1. Gabungkan item dengan nama sama bila ada
+  const mergedMap = new Map<string, TopicStat>();
+  for (const topic of topicsBreakdown) {
+    const existing = mergedMap.get(topic.nama);
+    if (existing) {
+      existing.count += topic.count;
+      existing.positif += topic.positif;
+      existing.netral += topic.netral;
+      existing.negatif += topic.negatif;
+    } else {
+      mergedMap.set(topic.nama, { ...topic });
+    }
+  }
+
+  // 2. Pisahkan "Lainnya" dari topik spesifik
+  let othersAccumulator: TopicStat | null = null;
+  const namedTopics: TopicStat[] = [];
+
+  for (const [name, stat] of mergedMap.entries()) {
+    if (name.trim().toLowerCase() === "lainnya") {
+      othersAccumulator = { ...stat, nama: "Lainnya" };
+    } else {
+      namedTopics.push(stat);
+    }
+  }
+
+  // 3. Urutkan topik spesifik berdasarkan hitungan terbanyak
+  namedTopics.sort((a, b) => b.count - a.count);
+
+  // 4. Ambil 3 teratas
+  const top3Named = namedTopics.slice(0, 3);
+  const remainingNamed = namedTopics.slice(3);
+
+  // 5. Gabungkan sisa topik bersama "Lainnya"
+  if (remainingNamed.length > 0) {
+    if (!othersAccumulator) {
+      othersAccumulator = {
+        nama: "Lainnya",
+        count: 0,
+        percentage: 0,
+        positif: 0,
+        netral: 0,
+        negatif: 0,
+      };
+    }
+    for (const rem of remainingNamed) {
+      othersAccumulator.count += rem.count;
+      othersAccumulator.positif += rem.positif;
+      othersAccumulator.netral += rem.netral;
+      othersAccumulator.negatif += rem.negatif;
+    }
+  }
+
+  const result: TopicStat[] = [...top3Named];
+  if (othersAccumulator && othersAccumulator.count > 0) {
+    result.push(othersAccumulator);
+  }
+
+  // 6. Pastikan bila ada selisih mention yang belum tercatat topik, digabung ke "Lainnya"
+  const accountedCount = result.reduce((acc, curr) => acc + curr.count, 0);
+  if (totalMentions > accountedCount) {
+    const diff = totalMentions - accountedCount;
+    const existingOther = result.find((t) => t.nama === "Lainnya");
+    if (existingOther) {
+      existingOther.count += diff;
+      existingOther.netral += diff;
+    } else {
+      result.push({
+        nama: "Lainnya",
+        count: diff,
+        percentage: 0,
+        positif: 0,
+        netral: diff,
+        negatif: 0,
+      });
+    }
+  }
+
+  // Hitung ulang persentase agar proporsional terhadap totalMentions
+  return result.map((item) => ({
+    ...item,
+    percentage: totalMentions > 0 ? (item.count / totalMentions) * 100 : 0,
+  }));
+}
+
 export function Card4SentimentByTopic({
   totalMentions,
   topicsBreakdown,
   draftsCount,
   unreadAlertsCount,
 }: Card4Props) {
-  // Tampilkan topik teratas dan gabungkan sisanya ke "Lainnya" agar jumlah sama dengan total mention
-  const mainTopics = topicsBreakdown.slice(0, 3);
-  const otherTopics = topicsBreakdown.slice(3);
-  const othersCount = otherTopics.reduce((acc, curr) => acc + curr.count, 0);
-
-  const displayList = [...mainTopics];
-  if (othersCount > 0) {
-    displayList.push({
-      nama: "Lainnya",
-      count: othersCount,
-      percentage: totalMentions > 0 ? (othersCount / totalMentions) * 100 : 0,
-      positif: otherTopics.reduce((a, c) => a + c.positif, 0),
-      netral: otherTopics.reduce((a, c) => a + c.netral, 0),
-      negatif: otherTopics.reduce((a, c) => a + c.negatif, 0),
-    });
-  }
+  const displayList = aggregateTopicsForCard4(topicsBreakdown, totalMentions);
 
   return (
     <div className="flex flex-col justify-between rounded-[28px] border border-slate-100 bg-white p-6 shadow-sm lg:col-span-3">

@@ -6,6 +6,9 @@ export default defineConfig({
     environment: "node",
     pool: "forks",
     fileParallelism: false,
+    // Tahap 3E: tes hanya boleh berjalan di DATABASE_URL_TEST (database terpisah).
+    globalSetup: ["./tests/setup/global-setup.ts"],
+    setupFiles: ["./tests/setup/per-test.ts"],
   },
 
   resolve: {

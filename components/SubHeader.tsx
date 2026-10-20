@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import { usePathname } from "next/navigation";
 import { useApp } from "@/context/AppContext";
 import { Calendar, Clock, Download, Check } from "lucide-react";
+import { getPresetDateRanges } from "@/lib/time";
 
 const pageTitles: Record<string, string> = {
   "/": "Dashboard",
@@ -29,40 +30,19 @@ export function SubHeader() {
   const title = pageTitles[pathname] || "Dashboard";
   const isDashboard = pathname === "/";
 
-  const dateOptions = [
-    {
-      label: "11 Okt - 17 Okt 2026",
-      startDate: "2026-10-11T00:00:00.000Z",
-      endDate: "2026-10-17T23:59:59.999Z",
-    },
-    {
-      label: "04 Okt - 17 Okt 2026",
-      startDate: "2026-10-04T00:00:00.000Z",
-      endDate: "2026-10-17T23:59:59.999Z",
-    },
-    {
-      label: "17 Sep - 17 Okt 2026",
-      startDate: "2026-09-17T00:00:00.000Z",
-      endDate: "2026-10-17T23:59:59.999Z",
-    },
-    {
-      label: "Bulan Ini (Okt 2026)",
-      startDate: "2026-10-01T00:00:00.000Z",
-      endDate: "2026-10-17T23:59:59.999Z",
-    },
-  ];
+  const dateOptions = getPresetDateRanges();
 
   const handleExport = (format: "csv" | "xlsx" | "pdf") => {
     setIsExportOpen(false);
+    const params = new URLSearchParams({
+      format: format,
+      startDate: dateRange.startDate,
+      endDate: dateRange.endDate,
+      includeSample: String(showSampleData),
+    });
     if (format === "pdf") {
-      window.print();
+      window.open(`/api/export?${params.toString()}`, "_blank");
     } else {
-      const params = new URLSearchParams({
-        format: format === "xlsx" ? "xlsx" : "csv",
-        startDate: dateRange.startDate,
-        endDate: dateRange.endDate,
-        includeSample: String(showSampleData),
-      });
       window.location.href = `/api/export?${params.toString()}`;
     }
   };

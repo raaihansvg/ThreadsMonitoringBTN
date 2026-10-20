@@ -17,14 +17,15 @@ interface AlertItem {
 }
 
 export default function AlertPage() {
-  const { role, refreshTrigger, triggerRefresh } = useApp();
+  const { role, refreshTrigger, triggerRefresh, showSampleData, showToast } =
+    useApp();
   const [alerts, setAlerts] = useState<AlertItem[]>([]);
   const [filter, setFilter] = useState<"all" | "unread">("all");
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     setLoading(true);
-    fetch(`/api/alerts?filter=${filter}`)
+    fetch(`/api/alerts?filter=${filter}&includeSample=${showSampleData}`)
       .then((res) => res.json())
       .then((data) => {
         if (data.ok && Array.isArray(data.alerts)) {
@@ -33,7 +34,7 @@ export default function AlertPage() {
         setLoading(false);
       })
       .catch(() => setLoading(false));
-  }, [filter, refreshTrigger]);
+  }, [filter, refreshTrigger, showSampleData]);
 
   const handleMarkAsRead = async (id: string) => {
     try {
@@ -45,10 +46,10 @@ export default function AlertPage() {
       if (res.ok) {
         triggerRefresh();
       } else {
-        alert("Gagal menandai alert.");
+        showToast("Gagal menandai alert.", "error");
       }
     } catch {
-      alert("Terjadi kendala jaringan.");
+      showToast("Terjadi kendala jaringan.", "error");
     }
   };
 
@@ -139,9 +140,18 @@ export default function AlertPage() {
                 </h3>
 
                 <p className="mt-1 text-xs text-[#5A6A7E]">
-                  Periode: {a.periode || "17 Okt 2026"} • Ambang dipakai:{" "}
-                  {a.ambangDipakai ?? (a.jenis === "LONJAKAN" ? 10 : 3)}{" "}
-                  mention/hari
+                  Periode:{" "}
+                  {a.periode ||
+                    new Date(a.dibuatPada).toLocaleDateString("id-ID", {
+                      day: "numeric",
+                      month: "short",
+                      year: "numeric",
+                      timeZone: "Asia/Jakarta",
+                    })}{" "}
+                  • Ambang dipakai:{" "}
+                  {a.ambangDipakai !== null && a.ambangDipakai !== undefined
+                    ? `${a.ambangDipakai} mention/hari`
+                    : "— (dipicu per-insiden)"}
                 </p>
               </div>
 

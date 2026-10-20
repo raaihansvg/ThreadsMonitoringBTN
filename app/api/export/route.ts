@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
+import crypto from "crypto";
 import { prisma } from "@/lib/prisma";
 import { MentionStatus, InputSourceType } from "@prisma/client";
 import { sanitizeFormulaInjection } from "@/lib/export/sanitize";
+import { escapeHtml, safeHttpsUrl } from "@/lib/security/escapeHtml";
 import ExcelJS from "exceljs";
 
 export const dynamic = "force-dynamic";
@@ -177,6 +179,8 @@ export async function GET(req: NextRequest) {
           ? `${startDateParam || "Awal"} s/d ${endDateParam || "Sekarang"}`
           : "Semua Rentang Waktu";
 
+      const nonce = crypto.randomBytes(16).toString("base64");
+
       const htmlContent = `<!DOCTYPE html>
 <html lang="id">
 <head>
@@ -217,17 +221,17 @@ export async function GET(req: NextRequest) {
       <div class="subtitle">Laporan Monitoring Media Sosial Threads (Social Listening & Analytics)</div>
     </div>
     <div style="text-align: right;">
-      <div style="font-weight: bold;">Dicetak: ${new Date().toLocaleString("id-ID")}</div>
+      <div style="font-weight: bold;">Dicetak: ${escapeHtml(new Date().toLocaleString("id-ID"))}</div>
       <div class="no-print" style="margin-top: 8px;">
-        <button onclick="window.print()" style="background: #0055FF; color: white; border: none; padding: 6px 14px; border-radius: 6px; cursor: pointer; font-weight: bold;">Cetak / Simpan PDF</button>
+        <button id="btnPrint" style="background: #0055FF; color: white; border: none; padding: 6px 14px; border-radius: 6px; cursor: pointer; font-weight: bold;">Cetak / Simpan PDF</button>
       </div>
     </div>
   </div>
 
   <div class="filter-box">
-    <div><strong>Rentang Tanggal:</strong> ${dateStr}</div>
-    <div><strong>Filter Topik:</strong> ${topik || "Semua Topik"}</div>
-    <div><strong>Filter Sentimen:</strong> ${sentimenParam || "Semua"}</div>
+    <div><strong>Rentang Tanggal:</strong> ${escapeHtml(dateStr)}</div>
+    <div><strong>Filter Topik:</strong> ${escapeHtml(topik || "Semua Topik")}</div>
+    <div><strong>Filter Sentimen:</strong> ${escapeHtml(sentimenParam || "Semua")}</div>
     <div><strong>Termasuk Data Contoh:</strong> ${includeSample ? "Ya (" + contohCount + " item)" : "Tidak (Hanya Riil)"}</div>
   </div>
 
@@ -268,24 +272,41 @@ export async function GET(req: NextRequest) {
     </thead>
     <tbody>
       ${mentions
-        .map(
-          (m) => `
+        .map((m) => {
+          const safeUrl = safeHttpsUrl(m.linkAsli);
+          const displayLink = escapeHtml(m.linkTernormalisasi || m.linkAsli);
+          const linkHtml = safeUrl
+            ? `<a href="${escapeHtml(safeUrl)}" target="_blank" rel="noopener noreferrer" style="color: #0055FF;">${displayLink}</a>`
+            : `<span>${displayLink}</span>`;
+
+          const sumberHtml =
+            m.sumberInput === "CONTOH"
+              ? '<span class="badge badge-contoh">CONTOH</span>'
+              : escapeHtml(m.sumberInput);
+
+          const badgeUrgent =
+            m.prioritas === "PERLU_PERHATIAN" ? "badge-urgent" : "";
+
+          return `
         <tr>
-          <td>${new Date(m.tanggalDitemukan).toLocaleDateString("id-ID")}</td>
-          <td><strong>${m.topik || "Lainnya"}</strong></td>
-          <td><span class="badge badge-${m.sentimen.toLowerCase()}">${m.sentimen}</span></td>
-          <td><span class="badge ${m.prioritas === "PERLU_PERHATIAN" ? "badge-urgent" : ""}">${m.prioritas}</span></td>
-          <td>${m.sumberInput === "CONTOH" ? '<span class="badge badge-contoh">CONTOH</span>' : m.sumberInput}</td>
+          <td>${escapeHtml(new Date(m.tanggalDitemukan).toLocaleDateString("id-ID"))}</td>
+          <td><strong>${escapeHtml(m.topik || "Lainnya")}</strong></td>
+          <td><span class="badge badge-${escapeHtml(m.sentimen.toLowerCase())}">${escapeHtml(m.sentimen)}</span></td>
+          <td><span class="badge ${badgeUrgent}">${escapeHtml(m.prioritas)}</span></td>
+          <td>${sumberHtml}</td>
           <td>
-            <strong>${m.headline || "Mention Baru"}</strong>
-            <div style="color: #475569; margin-top: 3px;">${m.ringkasan || m.teksPostingan.slice(0, 150)}</div>
+            <strong>${escapeHtml(m.headline || "Mention Baru")}</strong>
+            <div style="color: #475569; margin-top: 3px;">${escapeHtml(m.ringkasan || m.teksPostingan.slice(0, 150))}</div>
           </td>
-          <td style="word-break: break-all; font-size: 9px;"><a href="${m.linkAsli}" target="_blank" style="color: #0055FF;">${m.linkTernormalisasi || m.linkAsli}</a></td>
-        </tr>`
-        )
+          <td style="word-break: break-all; font-size: 9px;">${linkHtml}</td>
+        </tr>`;
+        })
         .join("")}
     </tbody>
   </table>
+  <script nonce="${nonce}">
+    document.getElementById("btnPrint")?.addEventListener("click", function() { window.print(); });
+  </script>
 </body>
 </html>`;
 
@@ -293,6 +314,8 @@ export async function GET(req: NextRequest) {
         status: 200,
         headers: {
           "Content-Type": "text/html; charset=utf-8",
+          "X-Content-Type-Options": "nosniff",
+          "Content-Security-Policy": `default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-${nonce}'; img-src data:;`,
         },
       });
     }

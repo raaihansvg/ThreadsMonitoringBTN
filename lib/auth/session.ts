@@ -8,11 +8,14 @@ export interface SessionPayload {
   role: "petugas";
 }
 
-const DEFAULT_SECRET = "btn-threads-monitoring-session-secret-salt-2026";
 const SESSION_COOKIE_NAME = "petugas_session";
 
-function getSessionSecret(): string {
-  return process.env.SESSION_SECRET || DEFAULT_SECRET;
+export function getSessionSecret(): string {
+  const secret = process.env.SESSION_SECRET?.trim();
+  if (!secret || secret.length < 32) {
+    throw new Error("SESSION_SECRET wajib dikonfigurasi minimal 32 karakter.");
+  }
+  return secret;
 }
 
 /**
@@ -108,8 +111,12 @@ export function verifyInputToken(
 ): boolean {
   if (!input || !serverToken) return false;
 
-  const a = Buffer.from(input.trim(), "utf-8");
-  const b = Buffer.from(serverToken.trim(), "utf-8");
+  const trimmedInput = input.trim();
+  const trimmedServer = serverToken.trim();
+  if (!trimmedInput || !trimmedServer) return false;
+
+  const a = Buffer.from(trimmedInput, "utf-8");
+  const b = Buffer.from(trimmedServer, "utf-8");
 
   // timingSafeEqual mewajibkan panjang buffer sama persis
   if (a.length !== b.length) {
@@ -171,6 +178,58 @@ export function recordLoginAttempt(ip: string): void {
 
 export function resetLoginRateLimit(ip: string): void {
   loginRateLimitMap.delete(ip);
+}
+
+/**
+ * Pembatasan frekuensi pembuatan mention POST /api/mentions
+ * (In-Memory Sliding Window 60x per menit per sesi/token/IP).
+ * Mendukung burst impor massal sah hingga 50 item sekaligus (FR-10).
+ */
+const mentionRateLimitMap = new Map<string, RateLimitBucket>();
+
+export function checkMentionRateLimit(key: string): {
+  allowed: boolean;
+  remaining: number;
+  retryAfterSeconds?: number;
+} {
+  const now = Date.now();
+  const windowMs = 60 * 1000;
+  const maxAttempts = 60;
+
+  const record = mentionRateLimitMap.get(key) || { attempts: [] };
+  record.attempts = record.attempts.filter((ts) => now - ts < windowMs);
+
+  if (record.attempts.length >= maxAttempts) {
+    const oldest = record.attempts[0];
+    const retryAfterSeconds = Math.ceil((oldest + windowMs - now) / 1000);
+    return {
+      allowed: false,
+      remaining: 0,
+      retryAfterSeconds: Math.max(1, retryAfterSeconds),
+    };
+  }
+
+  return {
+    allowed: true,
+    remaining: maxAttempts - record.attempts.length,
+  };
+}
+
+export function recordMentionAttempt(key: string): void {
+  const now = Date.now();
+  const windowMs = 60 * 1000;
+  const record = mentionRateLimitMap.get(key) || { attempts: [] };
+  record.attempts = record.attempts.filter((ts) => now - ts < windowMs);
+  record.attempts.push(now);
+  mentionRateLimitMap.set(key, record);
+}
+
+export function resetMentionRateLimit(key?: string): void {
+  if (key) {
+    mentionRateLimitMap.delete(key);
+  } else {
+    mentionRateLimitMap.clear();
+  }
 }
 
 /**
@@ -281,7 +340,14 @@ export async function requireOfficer(
   req: NextRequest,
   options: { allowBearer?: boolean } = { allowBearer: false }
 ): Promise<NextResponse | null> {
-  // 1. Proteksi CSRF untuk rute tulis
+  // 1. Periksa apakah ada token langsung via Authorization Bearer atau header x-extension-token (ekstensi)
+  // CATATAN: Bearer token HANYA diterima jika route memanggil dengan { allowBearer: true } (khusus POST /api/mentions).
+  // Permintaan dengan Bearer token eksplisit kebal terhadap CSRF karena browser tidak menyematkan Bearer token secara otomatis.
+  if (options.allowBearer && isBearerAuth(req)) {
+    return null; // Otentikasi ekstensi / API client valid
+  }
+
+  // 2. Proteksi CSRF untuk rute tulis yang mengandalkan sesi cookie
   if (!validateCsrf(req)) {
     return NextResponse.json(
       {
@@ -291,12 +357,6 @@ export async function requireOfficer(
       },
       { status: 403 }
     );
-  }
-
-  // 2. Periksa apakah ada token langsung via Authorization Bearer atau header x-input-token (ekstensi)
-  // CATATAN: Bearer token HANYA diterima jika route memanggil dengan { allowBearer: true }
-  if (options.allowBearer && isBearerAuth(req)) {
-    return null; // Otentikasi ekstensi / API client valid
   }
 
   // 3. Periksa Cookie Sesi

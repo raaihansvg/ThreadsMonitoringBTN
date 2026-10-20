@@ -48,7 +48,7 @@ export const createMentionSchema = z
     },
     {
       message:
-        "Teks postingan wajib diisi untuk mention yang langsung dipublikasikan.",
+        "Teks postingan wajib diisi untuk mention yang langsung disimpan.",
       path: ["teksPostingan"],
     }
   );

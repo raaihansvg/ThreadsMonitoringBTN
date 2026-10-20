@@ -6,11 +6,17 @@ import {
   MentionStatus,
   InputSourceType,
 } from "@prisma/client";
-import { requireOfficer, isBearerAuth } from "@/lib/auth/session";
+import {
+  requireOfficer,
+  isBearerAuth,
+  checkMentionRateLimit,
+  recordMentionAttempt,
+} from "@/lib/auth/session";
 import { validateThreadsUrl } from "@/lib/url";
 import { maskPii } from "@/lib/pii";
 import { createMentionSchema } from "@/lib/validation/schemas";
-import { selectTopic } from "@/lib/analysis/topicSelector";
+import { analyzeFallback } from "@/lib/analysis/fallbackAnalysis";
+import { triggerAlertsForMention } from "@/lib/alert/service";
 
 export const dynamic = "force-dynamic";
 
@@ -21,9 +27,20 @@ export async function GET(req: NextRequest) {
     // Endpoint cepat untuk cek duplikat URL
     const checkUrl = searchParams.get("checkUrl");
     if (checkUrl) {
-      const cleanUrl = checkUrl.trim().split("?")[0].replace("www.", "");
-      const existing = await prisma.mention.findUnique({
-        where: { linkTernormalisasi: cleanUrl },
+      const urlCheck = validateThreadsUrl(checkUrl);
+      const cleanUrl =
+        urlCheck.valid && urlCheck.normalizedUrl
+          ? urlCheck.normalizedUrl
+          : checkUrl.trim().split("?")[0].replace("www.", "");
+
+      const existing = await prisma.mention.findFirst({
+        where: {
+          OR: [
+            { linkTernormalisasi: cleanUrl },
+            { linkAsli: checkUrl.trim() },
+            { linkAsli: cleanUrl },
+          ],
+        },
         select: { id: true, headline: true, linkAsli: true },
       });
       return NextResponse.json({ exists: !!existing, mention: existing });
@@ -32,6 +49,7 @@ export async function GET(req: NextRequest) {
     const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10));
     const limit = Math.max(1, parseInt(searchParams.get("limit") || "20", 10));
     const search = searchParams.get("search")?.trim() || "";
+    const idParam = searchParams.get("id")?.trim();
     const topik = searchParams.get("topik")?.trim();
     const sentimen = searchParams.get("sentimen")?.trim() as
       | Sentiment
@@ -71,8 +89,18 @@ export async function GET(req: NextRequest) {
       where.tanggalDitemukan = dateFilter;
     }
 
+    if (idParam) {
+      where.id = idParam;
+      // Bila mencari entri spesifik via id, abaikan batasan tanggal dan status draf agar entri lama selalu ditemukan
+      delete where.status;
+      delete where.tanggalDitemukan;
+    }
+
     if (search) {
       where.OR = [
+        { id: search },
+        { linkAsli: { contains: search, mode: "insensitive" } },
+        { linkTernormalisasi: { contains: search, mode: "insensitive" } },
         { headline: { contains: search, mode: "insensitive" } },
         { ringkasan: { contains: search, mode: "insensitive" } },
         { teksPostingan: { contains: search, mode: "insensitive" } },
@@ -110,10 +138,47 @@ export async function GET(req: NextRequest) {
   }
 }
 
+function getMentionRateLimitKey(req: NextRequest): string {
+  const sessionCookie = req.cookies.get("petugas_session")?.value;
+  if (sessionCookie) {
+    return `session:${sessionCookie.slice(-24)}`;
+  }
+  const authHeader = req.headers.get("authorization");
+  const extHeader = req.headers.get("x-extension-token");
+  const token =
+    extHeader ||
+    (authHeader?.startsWith("Bearer ") ? authHeader.slice(7).trim() : null);
+  if (token) {
+    return `token:${token.slice(-24)}`;
+  }
+  const forwardedFor = req.headers.get("x-forwarded-for");
+  const ip = forwardedFor ? forwardedFor.split(",")[0].trim() : "127.0.0.1";
+  return `ip:${ip}`;
+}
+
 export async function POST(req: NextRequest) {
   try {
     const authError = await requireOfficer(req, { allowBearer: true });
     if (authError) return authError;
+
+    // Rate Limiting: 60 pembuatan mention per menit per sesi/token (mendukung burst 50 item impor)
+    const rateLimitKey = getMentionRateLimitKey(req);
+    const rateLimit = checkMentionRateLimit(rateLimitKey);
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: `Terlalu banyak permintaan pembuatan mention. Silakan tunggu ${rateLimit.retryAfterSeconds} detik.`,
+        },
+        {
+          status: 429,
+          headers: {
+            "Retry-After": String(rateLimit.retryAfterSeconds || 60),
+          },
+        }
+      );
+    }
+    recordMentionAttempt(rateLimitKey);
 
     const isBearer = isBearerAuth(req);
 
@@ -121,6 +186,16 @@ export async function POST(req: NextRequest) {
     if (!rawBody) {
       return NextResponse.json(
         { ok: false, error: "Bad Request: Body JSON tidak boleh kosong." },
+        { status: 400 }
+      );
+    }
+
+    if (Array.isArray(rawBody) && rawBody.length > 50) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: "Batas maksimal impor massal adalah 50 item sekaligus.",
+        },
         { status: 400 }
       );
     }
@@ -216,11 +291,13 @@ export async function POST(req: NextRequest) {
 
     // Tahap 3B: Draf tanpa teks TIDAK dianalisis
     if (!isEmptyText) {
+      const fallbackResult = analyzeFallback(safeText);
+
       safeHeadline = maskPii(
-        headline || safeText.slice(0, 80)
+        headline || fallbackResult.headline
       ).maskedText.slice(0, 100);
       safeRingkasan = maskPii(
-        ringkasan || safeText.slice(0, 300)
+        ringkasan || fallbackResult.ringkasan
       ).maskedText.slice(0, 400);
 
       // Aturan Penentuan Topik Otomatis jika topik belum dipilih atau "Lainnya"
@@ -230,12 +307,15 @@ export async function POST(req: NextRequest) {
         topik !== "Semua" &&
         topik !== "Semua Topik"
           ? topik
-          : selectTopic(safeText);
+          : fallbackResult.topik;
 
-      finalSentimen = sentimen || Sentiment.NETRAL;
-      finalPrioritas = prioritas || Priority.RUTIN;
-      finalKataKunci = Array.isArray(kataKunci) ? kataKunci : [];
-      finalPenyedia = penyediaAnalisis || "manual";
+      finalSentimen = sentimen || (fallbackResult.sentimen as Sentiment);
+      finalPrioritas = prioritas || (fallbackResult.prioritas as Priority);
+      finalKataKunci =
+        Array.isArray(kataKunci) && kataKunci.length > 0
+          ? kataKunci
+          : fallbackResult.kataKunci;
+      finalPenyedia = penyediaAnalisis || fallbackResult.penyedia;
     }
 
     // Aturan Otentikasi & Status (Tahap 1.7 & Tahap 3B):
@@ -276,6 +356,18 @@ export async function POST(req: NextRequest) {
         penyediaAnalisis: finalPenyedia,
       },
     });
+
+    // Pemicu Alert Nyata (Tahap 3D): Deteksi lonjakan / perlu perhatian
+    if (newMention.status !== MentionStatus.DRAF) {
+      await triggerAlertsForMention({
+        id: newMention.id,
+        topik: newMention.topik,
+        prioritas: newMention.prioritas,
+        sentimen: newMention.sentimen,
+        sumberInput: newMention.sumberInput,
+        tanggalDitemukan: newMention.tanggalDitemukan,
+      });
+    }
 
     return NextResponse.json({ ok: true, mention: newMention });
   } catch (error) {

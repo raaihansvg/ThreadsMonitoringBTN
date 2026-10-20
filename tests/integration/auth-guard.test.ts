@@ -5,6 +5,7 @@ import {
   createSignedSessionToken,
   verifySessionToken,
   verifyInputToken,
+  isBearerAuth,
   checkLoginRateLimit,
   recordLoginAttempt,
   resetLoginRateLimit,
@@ -54,6 +55,23 @@ describe("Audit Keamanan Sesi & Guard Terpusat requireOfficer (Tahap 1.5)", () =
     it("menolak cookie bernilai statis usang 'authenticated'", () => {
       expect(verifySessionToken("authenticated")).toBeNull();
     });
+
+    it("melempar Error bila SESSION_SECRET tidak ada atau kurang dari 32 karakter", () => {
+      const originalSecret = process.env.SESSION_SECRET;
+      try {
+        delete process.env.SESSION_SECRET;
+        expect(() => createSignedSessionToken()).toThrow(
+          "SESSION_SECRET wajib dikonfigurasi minimal 32 karakter."
+        );
+
+        process.env.SESSION_SECRET = "too-short";
+        expect(() => createSignedSessionToken()).toThrow(
+          "SESSION_SECRET wajib dikonfigurasi minimal 32 karakter."
+        );
+      } finally {
+        process.env.SESSION_SECRET = originalSecret;
+      }
+    });
   });
 
   describe("Constant-Time Token Comparison (crypto.timingSafeEqual)", () => {
@@ -68,6 +86,37 @@ describe("Audit Keamanan Sesi & Guard Terpusat requireOfficer (Tahap 1.5)", () =
       );
       expect(verifyInputToken("", "BTN_SECRET_2026")).toBe(false);
       expect(verifyInputToken(null, "BTN_SECRET_2026")).toBe(false);
+    });
+
+    it("token kosong atau serverToken kosong tidak pernah lolos autentikasi", () => {
+      expect(verifyInputToken("", "")).toBe(false);
+      expect(verifyInputToken("   ", "   ")).toBe(false);
+      expect(verifyInputToken("", "BTN_SECRET_2026")).toBe(false);
+      expect(verifyInputToken("BTN_SECRET_2026", "")).toBe(false);
+      expect(verifyInputToken("BTN_SECRET_2026", "   ")).toBe(false);
+      expect(verifyInputToken(undefined, undefined)).toBe(false);
+      expect(verifyInputToken(null, null)).toBe(false);
+    });
+
+    it("isBearerAuth menolak otentikasi bila EXTENSION_TOKEN di env kosong atau undefined", () => {
+      const originalExt = process.env.EXTENSION_TOKEN;
+      try {
+        delete process.env.EXTENSION_TOKEN;
+        const req1 = new NextRequest("http://localhost:3000/api/mentions", {
+          method: "POST",
+          headers: { authorization: "Bearer some-token" },
+        });
+        expect(isBearerAuth(req1)).toBe(false);
+
+        process.env.EXTENSION_TOKEN = "   ";
+        const req2 = new NextRequest("http://localhost:3000/api/mentions", {
+          method: "POST",
+          headers: { authorization: "Bearer some-token" },
+        });
+        expect(isBearerAuth(req2)).toBe(false);
+      } finally {
+        process.env.EXTENSION_TOKEN = originalExt;
+      }
     });
   });
 

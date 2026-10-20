@@ -113,7 +113,7 @@ export function selectTopic(
       } else {
         const escaped = lowerKw.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
         const regex = new RegExp(`\\b${escaped}\\b`, "i");
-        if (regex.test(lowerText) || lowerText.includes(lowerKw)) {
+        if (regex.test(lowerText)) {
           matchCount++;
         }
       }

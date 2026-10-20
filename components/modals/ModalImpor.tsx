@@ -10,29 +10,26 @@ import {
   RefreshCw,
   Download,
   ArrowRight,
+  AlertTriangle,
 } from "lucide-react";
-import { parseBulkPaste, MAX_IMPORT_ITEMS } from "@/lib/ingest/parseImport";
-
-interface ProblemRow {
-  line: number;
-  url: string;
-  reason: string;
-}
+import {
+  parseBulkPaste,
+  MAX_IMPORT_ITEMS,
+  processImportQueue,
+  ImportResultSummary,
+} from "@/lib/ingest/parseImport";
 
 export function ModalImpor() {
   const router = useRouter();
-  const { isImportModalOpen, setImportModalOpen, triggerRefresh } = useApp();
+  const { isImportModalOpen, setImportModalOpen, triggerRefresh, showToast } =
+    useApp();
   const [activeTab, setActiveTab] = useState<"paste" | "csv">("paste");
   const [pasteContent, setPasteContent] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
   const [progressText, setProgressText] = useState("");
   const [progressPercent, setProgressPercent] = useState(0);
-  const [resultSummary, setResultSummary] = useState<{
-    berhasil: number;
-    gagal: number;
-    duplikat: number;
-    problems: ProblemRow[];
-  } | null>(null);
+  const [resultSummary, setResultSummary] =
+    useState<ImportResultSummary | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -57,85 +54,31 @@ export function ModalImpor() {
     setIsProcessing(true);
     setResultSummary(null);
 
-    const limited = items.slice(0, 50);
-    const total = limited.length;
-    let berhasil = 0;
-    let duplikat = 0;
-    let gagal = 0;
-    const problems: ProblemRow[] = [];
-
-    for (let i = 0; i < total; i++) {
-      const item = limited[i];
-      setProgressText(`${i + 1} dari ${total} diproses`);
-      setProgressPercent(Math.round(((i + 1) / total) * 100));
-
-      const cleanUrl = item.url.trim().split("?")[0].replace("www.", "");
-      if (
-        !cleanUrl.startsWith("https://threads.net") &&
-        !cleanUrl.startsWith("https://threads.com")
-      ) {
-        gagal++;
-        problems.push({
-          line: i + 1,
-          url: item.url,
-          reason: "Format tautan bukan HTTPS threads.net atau threads.com",
-        });
-        continue;
-      }
-
-      try {
-        // Tahap 3B: Jangan beri placeholder teks palsu pada draf tanpa teks!
-        const text = item.text?.trim() || "";
-        const res = await fetch("/api/mentions", {
+    const summary = await processImportQueue(
+      items,
+      async (payload) => {
+        return await fetch("/api/mentions", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            linkAsli: item.url.trim(),
-            teksPostingan: text,
-            status: "DRAF",
-            sumberInput: "IMPOR",
-            headline: text ? text.slice(0, 80) : "",
-            ringkasan: text ? text.slice(0, 300) : "",
-            kataKunci: text ? ["impor", "massal"] : [],
-          }),
+          body: JSON.stringify(payload),
         });
-
-        if (res.ok) {
-          berhasil++;
-        } else if (res.status === 409) {
-          duplikat++;
-          problems.push({
-            line: i + 1,
-            url: item.url,
-            reason: "Tautan sudah tercatat di sistem (duplikat)",
-          });
-        } else {
-          gagal++;
-          const errData = await res.json().catch(() => ({}));
-          problems.push({
-            line: i + 1,
-            url: item.url,
-            reason: errData.error || "Gagal menyimpan entri",
-          });
-        }
-      } catch {
-        gagal++;
-        problems.push({
-          line: i + 1,
-          url: item.url,
-          reason: "Kendala jaringan saat menghubungi server",
-        });
+      },
+      {
+        onProgress: (current, total) => {
+          setProgressText(`${current} dari ${total} diproses`);
+          setProgressPercent(Math.round((current / total) * 100));
+        },
       }
-    }
+    );
 
     setIsProcessing(false);
-    setResultSummary({ berhasil, gagal, duplikat, problems });
+    setResultSummary(summary);
     triggerRefresh();
   };
 
   const handleProcessPaste = () => {
     if (!pasteContent.trim()) {
-      alert("Masukkan tautan terlebih dahulu.");
+      showToast("Masukkan tautan terlebih dahulu.", "error");
       return;
     }
 
@@ -146,8 +89,9 @@ export function ModalImpor() {
     );
 
     if (isTruncated) {
-      alert(
-        `Hanya ${MAX_IMPORT_ITEMS} item pertama dari total ${totalLines} baris yang akan diproses.`
+      showToast(
+        `Hanya ${MAX_IMPORT_ITEMS} item pertama dari total ${totalLines} baris yang akan diproses.`,
+        "info"
       );
     }
 
@@ -165,7 +109,7 @@ export function ModalImpor() {
 
       const lines = content.split(/\r?\n/).filter((l) => l.trim());
       if (lines.length <= 1) {
-        alert("Berkas CSV kosong atau hanya berisi baris judul.");
+        showToast("Berkas CSV kosong atau hanya berisi baris judul.", "error");
         return;
       }
 
@@ -192,13 +136,17 @@ export function ModalImpor() {
       }
 
       if (parsedItems.length === 0) {
-        alert("Tidak ada baris data yang valid ditemukan dalam berkas CSV.");
+        showToast(
+          "Tidak ada baris data yang valid ditemukan dalam berkas CSV.",
+          "error"
+        );
         return;
       }
 
       if (parsedItems.length > MAX_IMPORT_ITEMS) {
-        alert(
-          `Hanya ${MAX_IMPORT_ITEMS} item pertama dari total ${parsedItems.length} baris CSV yang akan diproses.`
+        showToast(
+          `Hanya ${MAX_IMPORT_ITEMS} item pertama dari total ${parsedItems.length} baris CSV yang akan diproses.`,
+          "info"
         );
       }
 
@@ -333,7 +281,33 @@ export function ModalImpor() {
                   </button>
                 </div>
 
-                <div className="grid grid-cols-3 gap-2 text-center text-xs">
+                {resultSummary.rateLimited && (
+                  <div className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900">
+                    <div className="flex items-center gap-1.5 font-bold">
+                      <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600" />
+                      <span>Proses Impor Terhenti (Batas Laju Tercapai)</span>
+                    </div>
+                    <p className="mt-1">
+                      Sebanyak{" "}
+                      <strong>
+                        {resultSummary.belumDiproses} item belum diproses
+                      </strong>{" "}
+                      karena server membatasi laju permintaan (HTTP 429).
+                      Silakan tunggu sekitar{" "}
+                      <strong>
+                        {resultSummary.retryAfterSeconds ?? 60} detik
+                      </strong>{" "}
+                      sebelum mencoba lagi.
+                    </p>
+                    <p className="mt-1 text-amber-800">
+                      💡 <strong>Mengimpor ulang aman:</strong> Item yang sudah
+                      berhasil disimpan sebelumnya akan otomatis terdeteksi
+                      sebagai duplikat dan tidak akan digandakan.
+                    </p>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-4 gap-2 text-center text-xs">
                   <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-2 font-bold text-emerald-800">
                     <div>{resultSummary.berhasil}</div>
                     <div className="text-xs font-semibold">Berhasil (Draf)</div>
@@ -345,6 +319,10 @@ export function ModalImpor() {
                   <div className="rounded-xl border border-rose-200 bg-rose-50 p-2 font-bold text-rose-800">
                     <div>{resultSummary.gagal}</div>
                     <div className="text-xs font-semibold">Gagal / Format</div>
+                  </div>
+                  <div className="rounded-xl border border-amber-200 bg-amber-50 p-2 font-bold text-amber-800">
+                    <div>{resultSummary.belumDiproses}</div>
+                    <div className="text-xs font-semibold">Belum Diproses</div>
                   </div>
                 </div>
 
@@ -469,7 +447,33 @@ export function ModalImpor() {
                   </button>
                 </div>
 
-                <div className="grid grid-cols-3 gap-2 text-center text-xs">
+                {resultSummary.rateLimited && (
+                  <div className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900">
+                    <div className="flex items-center gap-1.5 font-bold">
+                      <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600" />
+                      <span>Proses Impor Terhenti (Batas Laju Tercapai)</span>
+                    </div>
+                    <p className="mt-1">
+                      Sebanyak{" "}
+                      <strong>
+                        {resultSummary.belumDiproses} item belum diproses
+                      </strong>{" "}
+                      karena server membatasi laju permintaan (HTTP 429).
+                      Silakan tunggu sekitar{" "}
+                      <strong>
+                        {resultSummary.retryAfterSeconds ?? 60} detik
+                      </strong>{" "}
+                      sebelum mencoba lagi.
+                    </p>
+                    <p className="mt-1 text-amber-800">
+                      💡 <strong>Mengimpor ulang aman:</strong> Item yang sudah
+                      berhasil disimpan sebelumnya akan otomatis terdeteksi
+                      sebagai duplikat dan tidak akan digandakan.
+                    </p>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-4 gap-2 text-center text-xs">
                   <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-2 font-bold text-emerald-800">
                     <div>{resultSummary.berhasil}</div>
                     <div className="text-xs font-semibold">Berhasil (Draf)</div>
@@ -481,6 +485,10 @@ export function ModalImpor() {
                   <div className="rounded-xl border border-rose-200 bg-rose-50 p-2 font-bold text-rose-800">
                     <div>{resultSummary.gagal}</div>
                     <div className="text-xs font-semibold">Gagal / Format</div>
+                  </div>
+                  <div className="rounded-xl border border-amber-200 bg-amber-50 p-2 font-bold text-amber-800">
+                    <div>{resultSummary.belumDiproses}</div>
+                    <div className="text-xs font-semibold">Belum Diproses</div>
                   </div>
                 </div>
 

@@ -7,6 +7,15 @@ import {
   InputSourceType,
 } from "@prisma/client";
 
+import {
+  getWIBDateString,
+  getStartOfWIBDay,
+  getEndOfWIBDay,
+  subDaysWIB,
+  getStartOfWIBWeek,
+  formatWIBShortDate,
+} from "@/lib/time";
+
 export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
@@ -17,12 +26,13 @@ export async function GET(req: NextRequest) {
     const endDateParam = searchParams.get("endDate");
     const includeSample = searchParams.get("includeSample") !== "false";
 
-    // Standar rentang tanggal: default 30 hari terakhir
-    const now = new Date("2026-10-17T23:59:59.999Z");
-    const endDate = endDateParam ? new Date(endDateParam) : now;
+    // Standar rentang tanggal: default 30 hari terakhir berbasis zona waktu Asia/Jakarta (WIB)
+    const todayStr = getWIBDateString();
+    const endOfToday = getEndOfWIBDay(todayStr);
+    const endDate = endDateParam ? new Date(endDateParam) : endOfToday;
     const startDate = startDateParam
       ? new Date(startDateParam)
-      : new Date(endDate.getTime() - 29 * 24 * 60 * 60 * 1000);
+      : getStartOfWIBDay(subDaysWIB(todayStr, 29));
 
     // Hitung durasi untuk periode sebelumnya (panjang yang sama)
     const durationMs = endDate.getTime() - startDate.getTime();
@@ -189,17 +199,14 @@ export async function GET(req: NextRequest) {
         ? topicsBreakdown[0]
         : { nama: "Belum Ada Topik", count: 0, percentage: 0 };
 
-    // Indeks Harian 7 Hari Terakhir (Lollipop Chart berakhir hari ini 17 Okt 2026)
+    // Indeks Harian 7 Hari Terakhir (Lollipop Chart berakhir hari ini dalam waktu WIB)
     const daily7Days = [];
     const dayNames = ["M", "S", "S", "R", "K", "J", "S"]; // Minggu s/d Sabtu
     for (let i = 6; i >= 0; i--) {
-      const targetDate = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
-      const startOfDay = new Date(
-        targetDate.getFullYear(),
-        targetDate.getMonth(),
-        targetDate.getDate()
-      );
-      const endOfDay = new Date(startOfDay.getTime() + 24 * 60 * 60 * 1000 - 1);
+      const targetDateStr = subDaysWIB(todayStr, i);
+      const startOfDay = getStartOfWIBDay(targetDateStr);
+      const endOfDay = getEndOfWIBDay(targetDateStr);
+      const midDay = new Date(`${targetDateStr}T12:00:00.000+07:00`);
 
       const dayCount = await prisma.mention.count({
         where: {
@@ -212,17 +219,14 @@ export async function GET(req: NextRequest) {
       });
 
       daily7Days.push({
-        dayLabel: dayNames[targetDate.getDay()],
-        dateLabel: targetDate.toLocaleDateString("id-ID", {
-          day: "numeric",
-          month: "short",
-        }),
+        dayLabel: dayNames[midDay.getDay()],
+        dateLabel: formatWIBShortDate(startOfDay),
         count: dayCount,
         isSpike: dayCount >= dailyThreshold,
       });
     }
 
-    // Jumlah antrean Draf & Alert aktif
+    // Jumlah antrean Draf & Alert aktif (konsisten dengan toggle Data Contoh)
     const draftsCount = await prisma.mention.count({
       where: {
         status: MentionStatus.DRAF,
@@ -233,18 +237,68 @@ export async function GET(req: NextRequest) {
     });
 
     const unreadAlertsCount = await prisma.alert.count({
-      where: { dibaca: false },
+      where: {
+        dibaca: false,
+        ...(includeSample
+          ? {}
+          : { sumberInput: { not: InputSourceType.CONTOH } }),
+      },
     });
 
-    // Ringkasan Mingguan (Minggu berjalan)
-    const latestMention = activeMentions[activeMentions.length - 1];
+    // Ringkasan Mingguan: daftar maksimal 5 mention penting minggu berjalan (Senin WIB sampai hari ini)
+    const startOfWeek = getStartOfWIBWeek();
+    const weeklyMentions = await prisma.mention.findMany({
+      where: {
+        ...baseWhere,
+        tanggalDitemukan: {
+          gte: startOfWeek,
+        },
+      },
+    });
+
+    // Urutkan: Perlu Perhatian terlebih dahulu, lalu Negatif, lalu terbaru
+    weeklyMentions.sort((a, b) => {
+      const aUrgent = a.prioritas === Priority.PERLU_PERHATIAN ? 1 : 0;
+      const bUrgent = b.prioritas === Priority.PERLU_PERHATIAN ? 1 : 0;
+      if (aUrgent !== bUrgent) return bUrgent - aUrgent;
+
+      const aNeg = a.sentimen === Sentiment.NEGATIF ? 1 : 0;
+      const bNeg = b.sentimen === Sentiment.NEGATIF ? 1 : 0;
+      if (aNeg !== bNeg) return bNeg - aNeg;
+
+      return (
+        new Date(b.tanggalDitemukan).getTime() -
+        new Date(a.tanggalDitemukan).getTime()
+      );
+    });
+
+    const top5Weekly = weeklyMentions.slice(0, 5).map((m) => {
+      const rawSummary = (m.ringkasan || "").trim();
+      const rawHeadline = (m.headline || "").trim();
+      const fallbackText = (m.teksPostingan || "").slice(0, 200);
+
+      const effectiveSummary =
+        !rawSummary || rawSummary === rawHeadline ? fallbackText : rawSummary;
+      const effectiveHeadline =
+        rawHeadline || fallbackText.slice(0, 80) || "Mention BTN";
+
+      return {
+        id: m.id,
+        headline: effectiveHeadline,
+        summary: effectiveSummary,
+        teksPostingan: m.teksPostingan,
+        sentimen: m.sentimen,
+        prioritas: m.prioritas,
+        topik: m.topik || "Lainnya",
+        tanggalDitemukan: m.tanggalDitemukan,
+      };
+    });
+
     const weeklySummary = {
-      headline:
-        latestMention?.headline ||
-        "Tren Positif Peningkatan Minat KPR BTN dan Apresiasi Fitur Digital Mobile Banking",
-      summary:
-        latestMention?.ringkasan ||
-        "Aktivitas perbincangan pekan ini didominasi respons positif atas festival properti dan kemudahan simulasi kredit, dengan beberapa catatan pemantauan terkait stabilitas transaksi QRIS.",
+      hasData: top5Weekly.length > 0,
+      items: top5Weekly,
+      headline: top5Weekly[0]?.headline || "",
+      summary: top5Weekly[0]?.summary || "",
     };
 
     return NextResponse.json({

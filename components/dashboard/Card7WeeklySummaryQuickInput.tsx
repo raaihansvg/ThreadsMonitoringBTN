@@ -4,27 +4,62 @@ import React, { useState } from "react";
 import { useApp } from "@/context/AppContext";
 import { Copy, Check, Link as LinkIcon, ArrowRight, Lock } from "lucide-react";
 
+export interface WeeklyMentionItem {
+  id: string;
+  headline: string;
+  summary: string;
+  teksPostingan?: string;
+  sentimen?: string;
+  prioritas?: string;
+  topik?: string;
+  tanggalDitemukan?: string | Date;
+}
+
 interface Card7Props {
   weeklySummary: {
-    headline: string;
-    summary: string;
+    headline?: string;
+    summary?: string;
+    hasData?: boolean;
+    items?: WeeklyMentionItem[];
   };
 }
 
 export function Card7WeeklySummaryQuickInput({ weeklySummary }: Card7Props) {
-  const { role, openInputModal, setTokenModalOpen } = useApp();
+  const { role, openInputModal, setTokenModalOpen, showToast } = useApp();
   const [copied, setCopied] = useState(false);
   const [quickUrl, setQuickUrl] = useState("");
 
+  const items: WeeklyMentionItem[] =
+    weeklySummary?.items && weeklySummary.items.length > 0
+      ? weeklySummary.items
+      : weeklySummary?.headline || weeklySummary?.summary
+        ? [
+            {
+              id: "single",
+              headline: weeklySummary.headline || "",
+              summary: weeklySummary.summary || "",
+            },
+          ]
+        : [];
+
+  const hasData = Boolean(weeklySummary?.hasData && items.length > 0);
+
   const handleCopy = async () => {
-    const textToCopy = `Headline Post:\n${weeklySummary.headline}\n\nSummary Post:\n${weeklySummary.summary}`;
+    if (!hasData || items.length === 0) return;
+    const textToCopy = items
+      .map(
+        (item) =>
+          `Headline Post: ${item.headline}\nSummary Post: ${item.summary}`
+      )
+      .join("\n\n");
     try {
       await navigator.clipboard.writeText(textToCopy);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      alert(
-        "Tersalin ke clipboard dalam format kolom Headline Post & Summary Post."
+      showToast(
+        "Tersalin ke clipboard dalam format kolom Headline Post & Summary Post.",
+        "info"
       );
     }
   };
@@ -54,7 +89,13 @@ export function Card7WeeklySummaryQuickInput({ weeklySummary }: Card7Props) {
         </div>
         <button
           onClick={handleCopy}
-          className="flex items-center gap-1.5 rounded-full bg-[#0A192F] px-3.5 py-2 text-xs font-bold text-white transition hover:bg-[#0055FF]"
+          disabled={!hasData}
+          className={`flex items-center gap-1.5 rounded-full px-3.5 py-2 text-xs font-bold transition ${
+            hasData
+              ? "bg-[#0A192F] text-white hover:bg-[#0055FF]"
+              : "cursor-not-allowed bg-slate-200 text-slate-400"
+          }`}
+          aria-label="Salin Ringkasan Mingguan"
         >
           {copied ? (
             <>
@@ -70,14 +111,42 @@ export function Card7WeeklySummaryQuickInput({ weeklySummary }: Card7Props) {
         </button>
       </div>
 
-      <div className="my-3 space-y-1.5 rounded-2xl border border-slate-200/60 bg-[#F4F7FB] p-3 text-xs">
-        <p className="truncate">
-          <strong>Headline:</strong> {weeklySummary.headline}
-        </p>
-        <p className="truncate text-[#5A6A7E]">
-          <strong>Summary:</strong> {weeklySummary.summary}
-        </p>
-      </div>
+      {hasData ? (
+        <div className="my-3 max-h-56 space-y-2 overflow-y-auto pr-1">
+          {items.map((item, idx) => (
+            <div
+              key={item.id || idx}
+              className="space-y-1 rounded-2xl border border-slate-200/60 bg-[#F4F7FB] p-3 text-xs"
+            >
+              <div className="flex items-start justify-between gap-2">
+                <p className="font-medium text-slate-800">
+                  <strong className="text-slate-900">Headline Post:</strong>{" "}
+                  {item.headline}
+                </p>
+                {item.prioritas === "PERLU_PERHATIAN" && (
+                  <span className="shrink-0 rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-bold text-[#C10010]">
+                    Perlu Perhatian
+                  </span>
+                )}
+              </div>
+              <p className="text-[#5A6A7E]">
+                <strong className="text-slate-700">Summary Post:</strong>{" "}
+                {item.summary}
+              </p>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="my-3 flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-[#F4F7FB] p-4 text-center text-xs text-slate-500">
+          <p className="font-semibold text-slate-600">
+            Belum ada data minggu ini
+          </p>
+          <p className="mt-0.5 text-[11px] text-slate-400">
+            Ringkasan akan otomatis terisi saat ada mention penting pada pekan
+            ini.
+          </p>
+        </div>
+      )}
 
       {/* Bar Input Cepat (Role-Aware) */}
       {role === "petugas" ? (
