@@ -168,9 +168,11 @@ describe("Validasi Ekspor Laporan (FR-17, AC-08, Tahap 1.7)", () => {
     expect(html).toContain("PT Bank Tabungan Negara (Persero) Tbk");
     expect(html).toContain("Laporan Monitoring Media Sosial Threads");
 
-    // 2. Tombol Cetak / Simpan PDF
+    // 2. Tombol Cetak / Simpan PDF dengan script bertoken nonce
     expect(html).toContain("Cetak / Simpan PDF");
-    expect(html).toContain('onclick="window.print()"');
+    expect(html).toContain('id="btnPrint"');
+    expect(html).not.toContain('onclick="window.print()"');
+    expect(html).toMatch(/<script nonce="[A-Za-z0-9+/=]+">/);
 
     // 3. Gaya cetak A4
     expect(html).toContain("@page { size: A4 landscape; margin: 12mm; }");
@@ -185,8 +187,78 @@ describe("Validasi Ekspor Laporan (FR-17, AC-08, Tahap 1.7)", () => {
     expect(html).toContain("badge badge-contoh");
     expect(html).toContain("CONTOH");
 
-    // 6. DRAF tidak disertakan dalam pencarian DB
+    // 6. Header keamanan
+    expect(res.headers.get("x-content-type-options")).toBe("nosniff");
+    expect(res.headers.get("content-security-policy")).toContain("default-src 'none'");
+    expect(res.headers.get("content-security-policy")).toContain("script-src 'nonce-");
+
+    // 7. DRAF tidak disertakan dalam pencarian DB
     const queryArgs = (prisma.mention.findMany as any).mock.calls[0][0];
     expect(queryArgs.where.status).toEqual({ not: "DRAF" });
+  });
+
+  it("mencegah XSS pada ekspor PDF dengan meng-escape HTML dan memblokir skema link non-https", async () => {
+    const xssMentions = [
+      {
+        id: "m-xss-1",
+        tanggalDitemukan: new Date("2026-10-19T09:00:00Z"),
+        topik: "<script>alert('topik-xss')</script>",
+        sentimen: "POSITIF",
+        prioritas: "RUTIN",
+        status: "BARU",
+        sumberInput: "FORM",
+        headline: "<img src=x onerror=alert('headline-xss')>",
+        ringkasan: "<b>Teks ringkasan tebal</b> & 'quote'",
+        teksPostingan: "Postingan aman",
+        linkAsli: "javascript:alert('xss-link')",
+        linkTernormalisasi: "javascript:alert('xss-link')",
+      },
+      {
+        id: "m-xss-2",
+        tanggalDitemukan: new Date("2026-10-19T10:00:00Z"),
+        topik: "KPR BTN",
+        sentimen: "NETRAL",
+        prioritas: "RUTIN",
+        status: "BARU",
+        sumberInput: "FORM",
+        headline: "Link Valid",
+        ringkasan: "Ringkasan valid",
+        teksPostingan: "Teks valid",
+        linkAsli: "https://www.threads.net/@user/post/valid",
+        linkTernormalisasi: "https://threads.net/post/valid",
+      },
+    ];
+
+    (prisma.mention.findMany as any).mockResolvedValue(xssMentions);
+
+    const req = new NextRequest(
+      `${baseUrl}/api/export?format=pdf&topik=%3Cscript%3Ealert(%27param%27)%3C/script%3E`,
+      {
+        method: "GET",
+        headers: { host },
+      }
+    );
+
+    const res = await exportGet(req);
+    expect(res.status).toBe(200);
+
+    const html = await res.text();
+
+    // Pastikan tag berbahaya di-escape
+    expect(html).not.toContain("<script>alert('topik-xss')</script>");
+    expect(html).toContain("&lt;script&gt;alert(&#39;topik-xss&#39;)&lt;/script&gt;");
+    expect(html).not.toContain("<img src=x onerror=alert('headline-xss')>");
+    expect(html).toContain("&lt;img src=x onerror=alert(&#39;headline-xss&#39;)&gt;");
+    expect(html).toContain("&lt;b&gt;Teks ringkasan tebal&lt;/b&gt; &amp; &#39;quote&#39;");
+
+    // Pastikan parameter query di-escape
+    expect(html).not.toContain("<script>alert('param')</script>");
+    expect(html).toContain("&lt;script&gt;alert(&#39;param&#39;)&lt;/script&gt;");
+
+    // Pastikan skema non-https (javascript:) tidak menjadi atribut href
+    expect(html).not.toContain('href="javascript:');
+    // Namun link https valid tetap memiliki tag anchor dengan rel noopener
+    expect(html).toContain('href="https://www.threads.net/@user/post/valid"');
+    expect(html).toContain('rel="noopener noreferrer"');
   });
 });
