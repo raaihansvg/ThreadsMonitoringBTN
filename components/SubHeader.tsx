@@ -34,15 +34,15 @@ export function SubHeader() {
 
   const handleExport = (format: "csv" | "xlsx" | "pdf") => {
     setIsExportOpen(false);
+    const params = new URLSearchParams({
+      format: format,
+      startDate: dateRange.startDate,
+      endDate: dateRange.endDate,
+      includeSample: String(showSampleData),
+    });
     if (format === "pdf") {
-      window.print();
+      window.open(`/api/export?${params.toString()}`, "_blank");
     } else {
-      const params = new URLSearchParams({
-        format: format === "xlsx" ? "xlsx" : "csv",
-        startDate: dateRange.startDate,
-        endDate: dateRange.endDate,
-        includeSample: String(showSampleData),
-      });
       window.location.href = `/api/export?${params.toString()}`;
     }
   };
