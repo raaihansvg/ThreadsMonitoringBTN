@@ -281,7 +281,14 @@ export async function requireOfficer(
   req: NextRequest,
   options: { allowBearer?: boolean } = { allowBearer: false }
 ): Promise<NextResponse | null> {
-  // 1. Proteksi CSRF untuk rute tulis
+  // 1. Periksa apakah ada token langsung via Authorization Bearer atau header x-extension-token (ekstensi)
+  // CATATAN: Bearer token HANYA diterima jika route memanggil dengan { allowBearer: true } (khusus POST /api/mentions).
+  // Permintaan dengan Bearer token eksplisit kebal terhadap CSRF karena browser tidak menyematkan Bearer token secara otomatis.
+  if (options.allowBearer && isBearerAuth(req)) {
+    return null; // Otentikasi ekstensi / API client valid
+  }
+
+  // 2. Proteksi CSRF untuk rute tulis yang mengandalkan sesi cookie
   if (!validateCsrf(req)) {
     return NextResponse.json(
       {
@@ -291,12 +298,6 @@ export async function requireOfficer(
       },
       { status: 403 }
     );
-  }
-
-  // 2. Periksa apakah ada token langsung via Authorization Bearer atau header x-input-token (ekstensi)
-  // CATATAN: Bearer token HANYA diterima jika route memanggil dengan { allowBearer: true }
-  if (options.allowBearer && isBearerAuth(req)) {
-    return null; // Otentikasi ekstensi / API client valid
   }
 
   // 3. Periksa Cookie Sesi
