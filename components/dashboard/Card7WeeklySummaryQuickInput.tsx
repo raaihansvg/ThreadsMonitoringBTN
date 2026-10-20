@@ -4,11 +4,23 @@ import React, { useState } from "react";
 import { useApp } from "@/context/AppContext";
 import { Copy, Check, Link as LinkIcon, ArrowRight, Lock } from "lucide-react";
 
+export interface WeeklyMentionItem {
+  id: string;
+  headline: string;
+  summary: string;
+  teksPostingan?: string;
+  sentimen?: string;
+  prioritas?: string;
+  topik?: string;
+  tanggalDitemukan?: string | Date;
+}
+
 interface Card7Props {
   weeklySummary: {
-    headline: string;
-    summary: string;
+    headline?: string;
+    summary?: string;
     hasData?: boolean;
+    items?: WeeklyMentionItem[];
   };
 }
 
@@ -17,14 +29,29 @@ export function Card7WeeklySummaryQuickInput({ weeklySummary }: Card7Props) {
   const [copied, setCopied] = useState(false);
   const [quickUrl, setQuickUrl] = useState("");
 
-  const hasData = Boolean(
-    weeklySummary?.hasData &&
-      (weeklySummary.headline?.trim() || weeklySummary.summary?.trim())
-  );
+  const items: WeeklyMentionItem[] =
+    weeklySummary?.items && weeklySummary.items.length > 0
+      ? weeklySummary.items
+      : weeklySummary?.headline || weeklySummary?.summary
+        ? [
+            {
+              id: "single",
+              headline: weeklySummary.headline || "",
+              summary: weeklySummary.summary || "",
+            },
+          ]
+        : [];
+
+  const hasData = Boolean(weeklySummary?.hasData && items.length > 0);
 
   const handleCopy = async () => {
-    if (!hasData) return;
-    const textToCopy = `Headline Post:\n${weeklySummary.headline}\n\nSummary Post:\n${weeklySummary.summary}`;
+    if (!hasData || items.length === 0) return;
+    const textToCopy = items
+      .map(
+        (item) =>
+          `Headline Post: ${item.headline}\nSummary Post: ${item.summary}`
+      )
+      .join("\n\n");
     try {
       await navigator.clipboard.writeText(textToCopy);
       setCopied(true);
@@ -85,13 +112,29 @@ export function Card7WeeklySummaryQuickInput({ weeklySummary }: Card7Props) {
       </div>
 
       {hasData ? (
-        <div className="my-3 space-y-1.5 rounded-2xl border border-slate-200/60 bg-[#F4F7FB] p-3 text-xs">
-          <p className="truncate">
-            <strong>Headline:</strong> {weeklySummary.headline}
-          </p>
-          <p className="truncate text-[#5A6A7E]">
-            <strong>Summary:</strong> {weeklySummary.summary}
-          </p>
+        <div className="my-3 max-h-56 space-y-2 overflow-y-auto pr-1">
+          {items.map((item, idx) => (
+            <div
+              key={item.id || idx}
+              className="space-y-1 rounded-2xl border border-slate-200/60 bg-[#F4F7FB] p-3 text-xs"
+            >
+              <div className="flex items-start justify-between gap-2">
+                <p className="font-medium text-slate-800">
+                  <strong className="text-slate-900">Headline Post:</strong>{" "}
+                  {item.headline}
+                </p>
+                {item.prioritas === "PERLU_PERHATIAN" && (
+                  <span className="shrink-0 rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-bold text-[#C10010]">
+                    Perlu Perhatian
+                  </span>
+                )}
+              </div>
+              <p className="text-[#5A6A7E]">
+                <strong className="text-slate-700">Summary Post:</strong>{" "}
+                {item.summary}
+              </p>
+            </div>
+          ))}
         </div>
       ) : (
         <div className="my-3 flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-[#F4F7FB] p-4 text-center text-xs text-slate-500">
@@ -99,8 +142,8 @@ export function Card7WeeklySummaryQuickInput({ weeklySummary }: Card7Props) {
             Belum ada data minggu ini
           </p>
           <p className="mt-0.5 text-[11px] text-slate-400">
-            Ringkasan akan otomatis terisi saat ada mention yang dicatat pada
-            pekan ini.
+            Ringkasan akan otomatis terisi saat ada mention penting pada pekan
+            ini.
           </p>
         </div>
       )}

@@ -245,26 +245,61 @@ export async function GET(req: NextRequest) {
       },
     });
 
-    // Ringkasan Mingguan: hanya berbasis data nyata pada pekan berjalan (WIB)
+    // Ringkasan Mingguan: daftar maksimal 5 mention penting minggu berjalan (Senin WIB sampai hari ini)
     const startOfWeek = getStartOfWIBWeek();
-    const thisWeekMentions = activeMentions.filter(
-      (m) =>
-        new Date(m.tanggalDitemukan) >= startOfWeek &&
-        Boolean(m.headline?.trim() || m.ringkasan?.trim())
-    );
-    const latestWeeklyMention = thisWeekMentions[thisWeekMentions.length - 1];
+    const weeklyMentions = await prisma.mention.findMany({
+      where: {
+        ...baseWhere,
+        tanggalDitemukan: {
+          gte: startOfWeek,
+        },
+      },
+    });
 
-    const weeklySummary = latestWeeklyMention
-      ? {
-          headline: latestWeeklyMention.headline || "",
-          summary: latestWeeklyMention.ringkasan || "",
-          hasData: true,
-        }
-      : {
-          headline: "",
-          summary: "",
-          hasData: false,
-        };
+    // Urutkan: Perlu Perhatian terlebih dahulu, lalu Negatif, lalu terbaru
+    weeklyMentions.sort((a, b) => {
+      const aUrgent = a.prioritas === Priority.PERLU_PERHATIAN ? 1 : 0;
+      const bUrgent = b.prioritas === Priority.PERLU_PERHATIAN ? 1 : 0;
+      if (aUrgent !== bUrgent) return bUrgent - aUrgent;
+
+      const aNeg = a.sentimen === Sentiment.NEGATIF ? 1 : 0;
+      const bNeg = b.sentimen === Sentiment.NEGATIF ? 1 : 0;
+      if (aNeg !== bNeg) return bNeg - aNeg;
+
+      return (
+        new Date(b.tanggalDitemukan).getTime() -
+        new Date(a.tanggalDitemukan).getTime()
+      );
+    });
+
+    const top5Weekly = weeklyMentions.slice(0, 5).map((m) => {
+      const rawSummary = (m.ringkasan || "").trim();
+      const rawHeadline = (m.headline || "").trim();
+      const fallbackText = (m.teksPostingan || "").slice(0, 200);
+
+      const effectiveSummary =
+        !rawSummary || rawSummary === rawHeadline ? fallbackText : rawSummary;
+      const effectiveHeadline =
+        rawHeadline || fallbackText.slice(0, 80) || "Mention BTN";
+
+      return {
+        id: m.id,
+        headline: effectiveHeadline,
+        summary: effectiveSummary,
+        teksPostingan: m.teksPostingan,
+        sentimen: m.sentimen,
+        prioritas: m.prioritas,
+        topik: m.topik || "Lainnya",
+        tanggalDitemukan: m.tanggalDitemukan,
+      };
+    });
+
+    const weeklySummary = {
+      hasData: top5Weekly.length > 0,
+      items: top5Weekly,
+      headline: top5Weekly[0]?.headline || "",
+      summary: top5Weekly[0]?.summary || "",
+    };
 
     return NextResponse.json({
       totalMentions,
