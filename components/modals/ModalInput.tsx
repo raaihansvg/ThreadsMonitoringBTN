@@ -15,7 +15,7 @@ import {
   CheckCircle2,
   Sparkles,
 } from "lucide-react";
-import { analyzeFallback } from "@/lib/analysis/fallbackAnalysis";
+import { maskPii } from "@/lib/pii";
 
 export function ModalInput() {
   const router = useRouter();
@@ -50,6 +50,14 @@ export function ModalInput() {
   const [headline, setHeadline] = useState("");
   const [ringkasan, setRingkasan] = useState("");
   const [kataKunciInput, setKataKunciInput] = useState("");
+  const [initialAnalysis, setInitialAnalysis] = useState<{
+    topik: string;
+    sentimen: string;
+    prioritas: string;
+    headline: string;
+    ringkasan: string;
+    penyedia: string;
+  } | null>(null);
 
   // State Pratinjau FR-02 (Tahap 3A)
   const [isLoadingPreview, setIsLoadingPreview] = useState(false);
@@ -74,7 +82,6 @@ export function ModalInput() {
     "Tapera",
     "Tabungan BTN",
     "Pelayanan & CS",
-    "Kompetitor",
     "Lainnya",
   ]);
 
@@ -103,6 +110,7 @@ export function ModalInput() {
       setSubmitDuplicate(null);
       setSubmitError("");
       setUrlError("");
+      setInitialAnalysis(null);
     }
   }, [isInputModalOpen, prefilledUrl]);
 
@@ -159,20 +167,19 @@ export function ModalInput() {
 
   // Real-time PII detection on postText
   useEffect(() => {
-    const found: string[] = [];
-    if (/(?:\+?62|08)[0-9]{8,12}/.test(postText)) {
-      found.push("nomor telepon");
+    if (!postText) {
+      setDetectedPii([]);
+      return;
     }
-    if (/\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/.test(postText)) {
-      found.push("email");
-    }
-    if (/\b\d{16}\b/.test(postText)) {
-      found.push("NIK");
-    }
-    if (/\b\d{10,15}\b/.test(postText)) {
-      found.push("nomor rekening");
-    }
-    setDetectedPii(found);
+    const { detectedTypes } = maskPii(postText);
+    const labelMap: Record<string, string> = {
+      EMAIL: "email",
+      NOMOR_TELEPON: "nomor telepon",
+      NOMOR_KARTU: "nomor kartu",
+      NOMOR_IDENTITAS: "NIK",
+      NOMOR_REKENING: "nomor rekening",
+    };
+    setDetectedPii(detectedTypes.map((t) => labelMap[t] || t));
   }, [postText]);
 
   const handleRequestClose = useCallback(async () => {
@@ -204,18 +211,6 @@ export function ModalInput() {
   }, [isInputModalOpen, handleRequestClose]);
 
   if (!isInputModalOpen) return null;
-
-  // Mask PII before moving to step 2 or submitting
-  const getMaskedText = (raw: string) => {
-    return raw
-      .replace(
-        /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/g,
-        "[EMAIL DISAMARKAN]"
-      )
-      .replace(/(?:\+?62|08)[0-9]{8,12}/g, "[NO TELP DISAMARKAN]")
-      .replace(/\b\d{16}\b/g, "[NIK DISAMARKAN]")
-      .replace(/\b\d{10,15}\b/g, "[NO REKENING DISAMARKAN]");
-  };
 
   const handleFetchPreview = async () => {
     const trimmed = url.trim();
@@ -259,7 +254,7 @@ export function ModalInput() {
     }
   };
 
-  const handleProceedToStep2 = () => {
+  const handleProceedToStep2 = async () => {
     if (!url.trim()) {
       setUrlError("Tautan Threads wajib diisi.");
       return;
@@ -275,29 +270,107 @@ export function ModalInput() {
       return;
     }
 
-    const masked = getMaskedText(postText);
+    const { maskedText: masked } = maskPii(postText);
     setPostText(masked);
 
-    // Run auto-analysis with fallback
+    // Jalankan analisis via POST /api/analyze (NFR-04, AC-18)
     setIsAnalyzing(true);
     setAnalysisFailed(false);
     setStep(2);
 
-    setTimeout(() => {
+    try {
+      const res = await fetch("/api/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: masked }),
+      });
+      const data = await res.json();
+      if (res.ok && data.ok) {
+        const analysis = data.data || data;
+        const resolvedTopic = analysis.topik || "Lainnya";
+        const resolvedSentiment = analysis.sentimen || "NETRAL";
+        const resolvedPriority = analysis.prioritas || "RUTIN";
+        const resolvedHeadline = analysis.headline || "";
+        const resolvedRingkasan = analysis.ringkasan || "";
+        const resolvedKeywords = Array.isArray(analysis.kataKunci)
+          ? analysis.kataKunci.join(", ")
+          : "";
+
+        setTopik(resolvedTopic);
+        setSentimen(resolvedSentiment);
+        setPrioritas(resolvedPriority);
+        setKataKunciInput(resolvedKeywords);
+        if (!headline) {
+          setHeadline(resolvedHeadline);
+        }
+        if (!ringkasan) {
+          setRingkasan(resolvedRingkasan);
+        }
+        setInitialAnalysis({
+          topik: resolvedTopic,
+          sentimen: resolvedSentiment,
+          prioritas: resolvedPriority,
+          headline: resolvedHeadline,
+          ringkasan: resolvedRingkasan,
+          penyedia: analysis.penyedia || "keyword",
+        });
+      } else {
+        // Fallback aman di klien bila server/rate-limit gagal
+        setAnalysisFailed(true);
+        const firstLine = masked.split("\n")[0] || masked;
+        const fallbackHeadline =
+          firstLine.slice(0, 80).trim() || "Perbincangan Nasabah Terkait BTN";
+        const fallbackSummary = masked.slice(0, 300).trim();
+
+        setTopik("Lainnya");
+        setSentimen("NETRAL");
+        setPrioritas("RUTIN");
+        setKataKunciInput("");
+        if (!headline) setHeadline(fallbackHeadline);
+        if (!ringkasan) setRingkasan(fallbackSummary);
+        setInitialAnalysis({
+          topik: "Lainnya",
+          sentimen: "NETRAL",
+          prioritas: "RUTIN",
+          headline: fallbackHeadline,
+          ringkasan: fallbackSummary,
+          penyedia: "klien_fallback",
+        });
+        showToast(
+          data.error ||
+            "Analisis otomatis mengalami kendala. Formulir diisi nilai bawaan.",
+          "info"
+        );
+      }
+    } catch {
+      // Fallback aman saat kendala jaringan
+      setAnalysisFailed(true);
+      const firstLine = masked.split("\n")[0] || masked;
+      const fallbackHeadline =
+        firstLine.slice(0, 80).trim() || "Perbincangan Nasabah Terkait BTN";
+      const fallbackSummary = masked.slice(0, 300).trim();
+
+      setTopik("Lainnya");
+      setSentimen("NETRAL");
+      setPrioritas("RUTIN");
+      setKataKunciInput("");
+      if (!headline) setHeadline(fallbackHeadline);
+      if (!ringkasan) setRingkasan(fallbackSummary);
+      setInitialAnalysis({
+        topik: "Lainnya",
+        sentimen: "NETRAL",
+        prioritas: "RUTIN",
+        headline: fallbackHeadline,
+        ringkasan: fallbackSummary,
+        penyedia: "klien_fallback",
+      });
+      showToast(
+        "Kendala jaringan saat analisis otomatis. Formulir diisi nilai bawaan.",
+        "info"
+      );
+    } finally {
       setIsAnalyzing(false);
-      // Analisis teks sungguhan menggunakan fungsi bersama
-      const analysis = analyzeFallback(masked);
-      setTopik(analysis.topik);
-      setSentimen(analysis.sentimen);
-      setPrioritas(analysis.prioritas);
-      setKataKunciInput(analysis.kataKunci.join(", "));
-      if (!headline) {
-        setHeadline(analysis.headline);
-      }
-      if (!ringkasan) {
-        setRingkasan(analysis.ringkasan);
-      }
-    }, 600);
+    }
   };
 
   const handleSaveMention = async (e: React.FormEvent) => {
@@ -310,6 +383,14 @@ export function ModalInput() {
       .split(",")
       .map((k) => k.trim().toLowerCase())
       .filter(Boolean);
+
+    const isModified = initialAnalysis
+      ? topik !== initialAnalysis.topik ||
+        sentimen !== initialAnalysis.sentimen ||
+        prioritas !== initialAnalysis.prioritas ||
+        headline.trim() !== initialAnalysis.headline.trim() ||
+        ringkasan.trim() !== initialAnalysis.ringkasan.trim()
+      : false;
 
     try {
       const res = await fetch("/api/mentions", {
@@ -325,7 +406,8 @@ export function ModalInput() {
           headline: headline.slice(0, 100),
           ringkasan: ringkasan.slice(0, 400),
           kataKunci: keywords,
-          penyediaAnalisis: "manual",
+          penyediaAnalisis: initialAnalysis?.penyedia || "keyword",
+          dikoreksiManual: isModified,
         }),
       });
 
