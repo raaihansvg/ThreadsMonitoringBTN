@@ -284,6 +284,57 @@ export function resetAnalyzeRateLimit(key?: string): void {
 }
 
 /**
+ * Pembatasan frekuensi analisis ulang draf POST /api/drafts/[id]/analyze
+ * (In-Memory Sliding Window 10x per menit per sesi/IP).
+ */
+const draftAnalyzeRateLimitMap = new Map<string, RateLimitBucket>();
+
+export function checkDraftAnalyzeRateLimit(key: string): {
+  allowed: boolean;
+  remaining: number;
+  retryAfterSeconds?: number;
+} {
+  const now = Date.now();
+  const windowMs = 60 * 1000;
+  const maxAttempts = 10;
+
+  const record = draftAnalyzeRateLimitMap.get(key) || { attempts: [] };
+  record.attempts = record.attempts.filter((ts) => now - ts < windowMs);
+
+  if (record.attempts.length >= maxAttempts) {
+    const oldest = record.attempts[0];
+    const retryAfterSeconds = Math.ceil((oldest + windowMs - now) / 1000);
+    return {
+      allowed: false,
+      remaining: 0,
+      retryAfterSeconds: Math.max(1, retryAfterSeconds),
+    };
+  }
+
+  return {
+    allowed: true,
+    remaining: maxAttempts - record.attempts.length,
+  };
+}
+
+export function recordDraftAnalyzeAttempt(key: string): void {
+  const now = Date.now();
+  const windowMs = 60 * 1000;
+  const record = draftAnalyzeRateLimitMap.get(key) || { attempts: [] };
+  record.attempts = record.attempts.filter((ts) => now - ts < windowMs);
+  record.attempts.push(now);
+  draftAnalyzeRateLimitMap.set(key, record);
+}
+
+export function resetDraftAnalyzeRateLimit(key?: string): void {
+  if (key) {
+    draftAnalyzeRateLimitMap.delete(key);
+  } else {
+    draftAnalyzeRateLimitMap.clear();
+  }
+}
+
+/**
  * Proteksi CSRF: membandingkan Origin/Referer dengan Host aplikasi
  * untuk semua metode mutasi (POST, PUT, PATCH, DELETE).
  */
