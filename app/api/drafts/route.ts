@@ -5,7 +5,7 @@ import { requireOfficer } from "@/lib/auth/session";
 import { draftActionSchema } from "@/lib/validation/schemas";
 import { maskPii } from "@/lib/pii";
 import { triggerAlertsForMention } from "@/lib/alert/service";
-import { analyzeText } from "@/lib/analysis/service";
+import * as analysisService from "@/lib/analysis/service";
 
 export const dynamic = "force-dynamic";
 
@@ -117,29 +117,52 @@ export async function POST(req: NextRequest) {
         }
       }
 
-      const analysisResult = await analyzeText(safeText, { allowLlm: true });
+      // Tahap 2B-2: Gunakan hasil analisis yang sudah tersimpan di Mention tanpa memanggil analyzeText lagi
+      const hasStoredAnalysis = Boolean(
+        draft.headline ||
+          draft.ringkasan ||
+          sanitizedEdits.headline ||
+          sanitizedEdits.ringkasan ||
+          draft.topik ||
+          sanitizedEdits.topik
+      );
 
-      // Bila headline/ringkasan masih kosong setelah teks diisi, turunkan secara otomatis
-      if (!sanitizedEdits.headline && !draft.headline) {
-        sanitizedEdits.headline = analysisResult.headline;
-      }
-      if (!sanitizedEdits.ringkasan && !draft.ringkasan) {
-        sanitizedEdits.ringkasan = analysisResult.ringkasan;
-      }
-      if (
-        !sanitizedEdits.topik &&
-        (!draft.topik || draft.topik === "Lainnya")
-      ) {
-        sanitizedEdits.topik = analysisResult.topik;
-      }
-      if (!sanitizedEdits.sentimen && !draft.sentimen) {
-        sanitizedEdits.sentimen = analysisResult.sentimen;
-      }
-      if (!sanitizedEdits.prioritas && !draft.prioritas) {
-        sanitizedEdits.prioritas = analysisResult.prioritas;
-      }
-      if (!draft.penyediaAnalisis) {
-        sanitizedEdits.penyediaAnalisis = analysisResult.penyedia;
+      if (hasStoredAnalysis) {
+        if (!sanitizedEdits.headline && draft.headline) {
+          sanitizedEdits.headline = draft.headline;
+        }
+        if (!sanitizedEdits.ringkasan && draft.ringkasan) {
+          sanitizedEdits.ringkasan = draft.ringkasan;
+        }
+        if (!sanitizedEdits.topik && draft.topik) {
+          sanitizedEdits.topik = draft.topik;
+        }
+        if (!sanitizedEdits.sentimen && draft.sentimen) {
+          sanitizedEdits.sentimen = draft.sentimen;
+        }
+        if (!sanitizedEdits.prioritas && draft.prioritas) {
+          sanitizedEdits.prioritas = draft.prioritas;
+        }
+        if (!sanitizedEdits.penyediaAnalisis && draft.penyediaAnalisis) {
+          sanitizedEdits.penyediaAnalisis = draft.penyediaAnalisis;
+        }
+      } else {
+        // Fallback bila field analisis di Mention kosong (belum dianalisis sebelumnya)
+        const analysisResult = await analysisService.analyzeText(safeText, {
+          allowLlm: true,
+        });
+        if (!sanitizedEdits.headline)
+          sanitizedEdits.headline = analysisResult.headline;
+        if (!sanitizedEdits.ringkasan)
+          sanitizedEdits.ringkasan = analysisResult.ringkasan;
+        if (!sanitizedEdits.topik) sanitizedEdits.topik = analysisResult.topik;
+        if (!sanitizedEdits.sentimen)
+          sanitizedEdits.sentimen = analysisResult.sentimen;
+        if (!sanitizedEdits.prioritas)
+          sanitizedEdits.prioritas = analysisResult.prioritas;
+        if (!sanitizedEdits.penyediaAnalisis) {
+          sanitizedEdits.penyediaAnalisis = analysisResult.penyedia;
+        }
       }
 
       const updated = await prisma.mention.update({
