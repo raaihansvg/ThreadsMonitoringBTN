@@ -278,12 +278,17 @@ export function ModalInput() {
     setAnalysisFailed(false);
     setStep(2);
 
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 3000);
+
     try {
       const res = await fetch("/api/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text: masked }),
+        signal: controller.signal,
       });
+      clearTimeout(timeoutId);
       const data = await res.json();
       if (res.ok && data.ok) {
         const analysis = data.data || data;
@@ -315,35 +320,11 @@ export function ModalInput() {
           penyedia: analysis.penyedia || "keyword",
         });
       } else {
-        // Fallback aman di klien bila server/rate-limit gagal
-        setAnalysisFailed(true);
-        const firstLine = masked.split("\n")[0] || masked;
-        const fallbackHeadline =
-          firstLine.slice(0, 80).trim() || "Perbincangan Nasabah Terkait BTN";
-        const fallbackSummary = masked.slice(0, 300).trim();
-
-        setTopik("Lainnya");
-        setSentimen("NETRAL");
-        setPrioritas("RUTIN");
-        setKataKunciInput("");
-        if (!headline) setHeadline(fallbackHeadline);
-        if (!ringkasan) setRingkasan(fallbackSummary);
-        setInitialAnalysis({
-          topik: "Lainnya",
-          sentimen: "NETRAL",
-          prioritas: "RUTIN",
-          headline: fallbackHeadline,
-          ringkasan: fallbackSummary,
-          penyedia: "klien_fallback",
-        });
-        showToast(
-          data.error ||
-            "Analisis otomatis mengalami kendala. Formulir diisi nilai bawaan.",
-          "info"
-        );
+        throw new Error(data?.error || "Gagal menganalisis postingan.");
       }
     } catch {
-      // Fallback aman saat kendala jaringan
+      clearTimeout(timeoutId);
+      // Fallback aman di klien bila server/timeout/rate-limit gagal
       setAnalysisFailed(true);
       const firstLine = masked.split("\n")[0] || masked;
       const fallbackHeadline =
@@ -365,8 +346,8 @@ export function ModalInput() {
         penyedia: "klien_fallback",
       });
       showToast(
-        "Kendala jaringan saat analisis otomatis. Formulir diisi nilai bawaan.",
-        "info"
+        "Analisis otomatis gagal. Silakan sesuaikan secara manual.",
+        "error"
       );
     } finally {
       setIsAnalyzing(false);
@@ -724,19 +705,42 @@ export function ModalInput() {
         {step === 2 && (
           <form onSubmit={handleSaveMention} className="space-y-4 text-xs">
             {/* Banner Analisis Gagal (Bila Terjadi) */}
-            {analysisFailed && (
-              <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3 text-amber-900">
-                <strong>Analisis otomatis gagal:</strong> Nilai bawaan dipakai
-                (Netral, Rutin); mohon periksa sebelum menyimpan.
+            {analysisFailed && !isAnalyzing && (
+              <div className="flex items-center gap-2 rounded-2xl border border-amber-200 bg-amber-50 p-3 text-amber-900">
+                <AlertCircle className="h-4 w-4 shrink-0 text-amber-600" />
+                <span>
+                  Analisis otomatis gagal. Silakan sesuaikan secara manual.
+                </span>
               </div>
             )}
 
-            {/* Loading Skeleton jika sedang analisis */}
+            {/* Loading Skeleton Bento jika sedang analisis */}
             {isAnalyzing ? (
-              <div className="animate-pulse space-y-3 py-4">
-                <div className="h-10 rounded-xl bg-slate-100" />
-                <div className="h-20 rounded-xl bg-slate-100" />
-                <div className="h-10 rounded-xl bg-slate-100" />
+              <div
+                data-testid="bento-analysis-skeleton"
+                className="animate-pulse space-y-4 rounded-2xl border border-slate-100 bg-[#F4F7FB]/50 p-5"
+              >
+                <div className="flex items-center gap-2 font-medium text-slate-600">
+                  <Loader2 className="h-4 w-4 animate-spin text-[#0055FF]" />
+                  <span>Menganalisis postingan...</span>
+                </div>
+                <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3">
+                  <div className="h-10 rounded-xl bg-slate-200/70" />
+                  <div className="h-10 rounded-xl bg-slate-200/70" />
+                  <div className="h-10 rounded-xl bg-slate-200/70" />
+                </div>
+                <div className="space-y-1.5">
+                  <div className="h-3 w-20 rounded bg-slate-200/70" />
+                  <div className="h-10 rounded-xl bg-slate-200/70" />
+                </div>
+                <div className="space-y-1.5">
+                  <div className="h-3 w-24 rounded bg-slate-200/70" />
+                  <div className="h-20 rounded-xl bg-slate-200/70" />
+                </div>
+                <div className="space-y-1.5">
+                  <div className="h-3 w-20 rounded bg-slate-200/70" />
+                  <div className="h-10 rounded-xl bg-slate-200/70" />
+                </div>
               </div>
             ) : (
               <>
