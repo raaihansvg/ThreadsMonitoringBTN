@@ -5,7 +5,7 @@ import { requireOfficer } from "@/lib/auth/session";
 import { draftActionSchema } from "@/lib/validation/schemas";
 import { maskPii } from "@/lib/pii";
 import { triggerAlertsForMention } from "@/lib/alert/service";
-import { analyzeFallback } from "@/lib/analysis/fallbackAnalysis";
+import { analyzeText } from "@/lib/analysis/service";
 
 export const dynamic = "force-dynamic";
 
@@ -117,26 +117,29 @@ export async function POST(req: NextRequest) {
         }
       }
 
-      const fallbackResult = analyzeFallback(safeText);
+      const analysisResult = await analyzeText(safeText, { allowLlm: true });
 
       // Bila headline/ringkasan masih kosong setelah teks diisi, turunkan secara otomatis
       if (!sanitizedEdits.headline && !draft.headline) {
-        sanitizedEdits.headline = fallbackResult.headline;
+        sanitizedEdits.headline = analysisResult.headline;
       }
       if (!sanitizedEdits.ringkasan && !draft.ringkasan) {
-        sanitizedEdits.ringkasan = fallbackResult.ringkasan;
+        sanitizedEdits.ringkasan = analysisResult.ringkasan;
       }
       if (
         !sanitizedEdits.topik &&
         (!draft.topik || draft.topik === "Lainnya")
       ) {
-        sanitizedEdits.topik = fallbackResult.topik;
+        sanitizedEdits.topik = analysisResult.topik;
       }
       if (!sanitizedEdits.sentimen && !draft.sentimen) {
-        sanitizedEdits.sentimen = fallbackResult.sentimen;
+        sanitizedEdits.sentimen = analysisResult.sentimen;
       }
       if (!sanitizedEdits.prioritas && !draft.prioritas) {
-        sanitizedEdits.prioritas = fallbackResult.prioritas;
+        sanitizedEdits.prioritas = analysisResult.prioritas;
+      }
+      if (!draft.penyediaAnalisis) {
+        sanitizedEdits.penyediaAnalisis = analysisResult.penyedia;
       }
 
       const updated = await prisma.mention.update({

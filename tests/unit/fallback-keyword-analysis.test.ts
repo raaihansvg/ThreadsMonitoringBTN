@@ -1,11 +1,12 @@
 import { describe, it, expect } from "vitest";
 import { analyzeFallback } from "@/lib/analysis/fallbackAnalysis";
+import { TEST_TOPICS } from "@/tests/fixtures/topics";
 
 describe("Analisis Cadangan (Kata Kunci) - Tahap 3F", () => {
   it("Kasus A: KOK BISA UANG 17M LENYAP DI BANK BTN? SEKALI LAGI 17M WOIIII", () => {
     const textA =
       "KOK BISA UANG 17M LENYAP DI BANK BTN? SEKALI LAGI 17M WOIIII";
-    const resA = analyzeFallback(textA);
+    const resA = analyzeFallback(textA, TEST_TOPICS);
 
     console.log("HASIL UJI KASUS A:", JSON.stringify(resA, null, 2));
 
@@ -28,7 +29,7 @@ describe("Analisis Cadangan (Kata Kunci) - Tahap 3F", () => {
   it("Kasus B: boleh bagi info nya kak yg memilih kpp BTN daripada take over KPR bank lain?? terima kasih", () => {
     const textB =
       "boleh bagi info nya kak yg memilih kpp BTN daripada take over KPR bank lain?? terima kasih";
-    const resB = analyzeFallback(textB);
+    const resB = analyzeFallback(textB, TEST_TOPICS);
 
     console.log("HASIL UJI KASUS B:", JSON.stringify(resB, null, 2));
 
@@ -50,7 +51,7 @@ describe("Analisis Cadangan (Kata Kunci) - Tahap 3F", () => {
   it("Kasus C: Update terbaru BTN Mobile tampilannya makin modern dan responsif", () => {
     const textC =
       "Update terbaru BTN Mobile tampilannya makin modern dan responsif";
-    const resC = analyzeFallback(textC);
+    const resC = analyzeFallback(textC, TEST_TOPICS);
 
     console.log("HASIL UJI KASUS C:", JSON.stringify(resC, null, 2));
 
@@ -71,24 +72,27 @@ describe("Analisis Cadangan (Kata Kunci) - Tahap 3F", () => {
   });
 
   it("Generalisasi 1: Teks dengan huruf berulang ('aplikasi russsaaak bangett') terdeteksi negatif", () => {
-    const res = analyzeFallback("aplikasi russsaaak bangett");
+    const res = analyzeFallback("aplikasi russsaaak bangett", TEST_TOPICS);
     expect(res.sentimen).toBe("NEGATIF");
     expect(res.kataKunci).toContain("rusak");
   });
 
   it("Generalisasi 2: Teks tanya murni ('apakah kantor cabang buka hari sabtu?') menjadi NETRAL", () => {
-    const res = analyzeFallback("apakah kantor cabang buka hari sabtu?");
+    const res = analyzeFallback(
+      "apakah kantor cabang buka hari sabtu?",
+      TEST_TOPICS
+    );
     expect(res.sentimen).toBe("NETRAL");
-    expect(res.topik).toBe("Layanan Kantor Cabang");
+    expect(res.topik).toBe("Pelayanan & CS");
   });
 
   it("Generalisasi 3: Substring tidak mencocokkan kata lain ('bekas kantor' tidak memicu kata 'kas')", () => {
-    const res = analyzeFallback("bekas kantor cabang lama");
+    const res = analyzeFallback("bekas kantor cabang lama", TEST_TOPICS);
     expect(res.kataKunci).not.toContain("kas");
   });
 
   it("Generalisasi 4: Teks dengan nominal ('transfer 500rb berhasil lancar') tidak dianggap risiko", () => {
-    const res = analyzeFallback("transfer 500rb berhasil lancar");
+    const res = analyzeFallback("transfer 500rb berhasil lancar", TEST_TOPICS);
     expect(res.sentimen).toBe("POSITIF");
     expect(res.prioritas).toBe("RUTIN");
     expect(res.prioritas).not.toBe("PERLU_PERHATIAN");
@@ -97,7 +101,8 @@ describe("Analisis Cadangan (Kata Kunci) - Tahap 3F", () => {
   // Uji Generalisasi Formal (d sampai i)
   it("Kasus d: 'saldo 50jt raib dari rekening btn, cs ga bisa dihubungi' -> NEGATIF, PERLU_PERHATIAN", () => {
     const res = analyzeFallback(
-      "saldo 50jt raib dari rekening btn, cs ga bisa dihubungi"
+      "saldo 50jt raib dari rekening btn, cs ga bisa dihubungi",
+      TEST_TOPICS
     );
     expect(res.sentimen).toBe("NEGATIF");
     expect(res.prioritas).toBe("PERLU_PERHATIAN");
@@ -105,30 +110,38 @@ describe("Analisis Cadangan (Kata Kunci) - Tahap 3F", () => {
 
   it("Kasus e: 'ada yg tau syarat kpr subsidi btn sekarang apa aja?' -> NETRAL, RUTIN", () => {
     const res = analyzeFallback(
-      "ada yg tau syarat kpr subsidi btn sekarang apa aja?"
+      "ada yg tau syarat kpr subsidi btn sekarang apa aja?",
+      TEST_TOPICS
     );
     expect(res.sentimen).toBe("NETRAL");
     expect(res.prioritas).toBe("RUTIN");
   });
 
   it("Kasus f: 'pelayanan di cabang ramah bangeeet, mantaaap' -> POSITIF", () => {
-    const res = analyzeFallback("pelayanan di cabang ramah bangeeet, mantaaap");
+    const res = analyzeFallback(
+      "pelayanan di cabang ramah bangeeet, mantaaap",
+      TEST_TOPICS
+    );
     expect(res.sentimen).toBe("POSITIF");
   });
 
   it("Kasus g: 'baru beli laptop pakai kpr btn' -> kata kunci tidak memuat 'top'", () => {
-    const res = analyzeFallback("baru beli laptop pakai kpr btn");
+    const res = analyzeFallback("baru beli laptop pakai kpr btn", TEST_TOPICS);
     expect(res.kataKunci).not.toContain("top");
   });
 
   it("Kasus h: 'aplikasinya mantap banget ya? makasih' -> POSITIF", () => {
-    const res = analyzeFallback("aplikasinya mantap banget ya? makasih");
+    const res = analyzeFallback(
+      "aplikasinya mantap banget ya? makasih",
+      TEST_TOPICS
+    );
     expect(res.sentimen).toBe("POSITIF");
   });
 
   it("Kasus i: 'kenapa saldo saya hilang? tolong dibantu makasih' -> NEGATIF, PERLU_PERHATIAN", () => {
     const res = analyzeFallback(
-      "kenapa saldo saya hilang? tolong dibantu makasih"
+      "kenapa saldo saya hilang? tolong dibantu makasih",
+      TEST_TOPICS
     );
     expect(res.sentimen).toBe("NEGATIF");
     expect(res.prioritas).toBe("PERLU_PERHATIAN");

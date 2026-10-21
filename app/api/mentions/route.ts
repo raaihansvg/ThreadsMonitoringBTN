@@ -15,7 +15,7 @@ import {
 import { validateThreadsUrl } from "@/lib/url";
 import { maskPii } from "@/lib/pii";
 import { createMentionSchema } from "@/lib/validation/schemas";
-import { analyzeFallback } from "@/lib/analysis/fallbackAnalysis";
+import { analyzeText } from "@/lib/analysis/service";
 import { triggerAlertsForMention } from "@/lib/alert/service";
 
 export const dynamic = "force-dynamic";
@@ -291,13 +291,16 @@ export async function POST(req: NextRequest) {
 
     // Tahap 3B: Draf tanpa teks TIDAK dianalisis
     if (!isEmptyText) {
-      const fallbackResult = analyzeFallback(safeText);
+      const isImport = sumberInput === InputSourceType.IMPOR;
+      const analysisResult = await analyzeText(safeText, {
+        allowLlm: !isImport,
+      });
 
       safeHeadline = maskPii(
-        headline || fallbackResult.headline
+        headline || analysisResult.headline
       ).maskedText.slice(0, 100);
       safeRingkasan = maskPii(
-        ringkasan || fallbackResult.ringkasan
+        ringkasan || analysisResult.ringkasan
       ).maskedText.slice(0, 400);
 
       // Aturan Penentuan Topik Otomatis jika topik belum dipilih atau "Lainnya"
@@ -307,15 +310,15 @@ export async function POST(req: NextRequest) {
         topik !== "Semua" &&
         topik !== "Semua Topik"
           ? topik
-          : fallbackResult.topik;
+          : analysisResult.topik;
 
-      finalSentimen = sentimen || (fallbackResult.sentimen as Sentiment);
-      finalPrioritas = prioritas || (fallbackResult.prioritas as Priority);
+      finalSentimen = sentimen || (analysisResult.sentimen as Sentiment);
+      finalPrioritas = prioritas || (analysisResult.prioritas as Priority);
       finalKataKunci =
         Array.isArray(kataKunci) && kataKunci.length > 0
           ? kataKunci
-          : fallbackResult.kataKunci;
-      finalPenyedia = penyediaAnalisis || fallbackResult.penyedia;
+          : analysisResult.kataKunci;
+      finalPenyedia = penyediaAnalisis || analysisResult.penyedia;
     }
 
     // Aturan Otentikasi & Status (Tahap 1.7 & Tahap 3B):
@@ -354,6 +357,7 @@ export async function POST(req: NextRequest) {
         ringkasan: safeRingkasan,
         kataKunci: finalKataKunci,
         penyediaAnalisis: finalPenyedia,
+        dikoreksiManual: parsed.data.dikoreksiManual ?? false,
       },
     });
 

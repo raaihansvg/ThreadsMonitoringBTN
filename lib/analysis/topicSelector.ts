@@ -12,82 +12,9 @@ export interface TopicDefinition {
   kataKunci: string[];
 }
 
-export const CONFIGURED_TOPICS: TopicDefinition[] = [
-  {
-    nama: "KPR BTN",
-    kataKunci: [
-      "kpr",
-      "kpr btn",
-      "rumah",
-      "subsidi",
-      "cicilan",
-      "akad",
-      "flpp",
-      "bunga",
-      "properti",
-      "perumahan",
-    ],
-  },
-  {
-    nama: "BTN Mobile",
-    kataKunci: [
-      "mobile",
-      "btn mobile",
-      "aplikasi",
-      "login",
-      "transfer",
-      "bifast",
-      "bi-fast",
-      "topup",
-      "m-banking",
-      "mbanking",
-      "rekening online",
-    ],
-  },
-  {
-    nama: "Layanan Kantor Cabang",
-    kataKunci: [
-      "cabang",
-      "teller",
-      "antrean",
-      "antri",
-      "satpam",
-      "kc",
-      "kcp",
-      "pelayanan",
-      "cs",
-      "customer service",
-      "kantor cabang",
-    ],
-  },
-  {
-    nama: "Tapera",
-    kataKunci: [
-      "tapera",
-      "tabungan perumahan",
-      "potongan tapera",
-      "iuran tapera",
-      "bp tapera",
-    ],
-  },
-  {
-    nama: "Tabungan BTN",
-    kataKunci: [
-      "tabungan",
-      "atm",
-      "kartu debit",
-      "buka rekening",
-      "saldo",
-      "batara",
-      "simpanan",
-      "bunga tabungan",
-    ],
-  },
-];
-
 export function selectTopic(
   text: string,
-  topics: TopicDefinition[] = CONFIGURED_TOPICS
+  topics: TopicDefinition[] = []
 ): string {
   if (!text || typeof text !== "string") {
     return "Lainnya";

@@ -109,6 +109,57 @@ describe("Draf Tanpa Teks & Status Kanonik Tautan /share/ (Tahap 3B)", () => {
     expect(approvedJson.ok).toBe(true);
     expect(approvedJson.mention.status).toBe("BARU");
     expect(approvedJson.mention.teksPostingan).toContain("BTN Mobile");
+    expect(approvedJson.mention.topik).toBe("Lainnya");
+    expect(approvedJson.mention.dikoreksiManual).toBe(true);
+
+    // Bersihkan
+    await prisma.mention.delete({ where: { id: draft.id } });
+  });
+
+  it("persetujuan draf memakai topik dari database (Tahap 2B-1)", async () => {
+    // 1. Masukkan topik ke database
+    await prisma.topic.create({
+      data: {
+        nama: "BTN Mobile",
+        kataKunci: ["btn mobile", "aplikasi"],
+        aktif: true,
+      },
+    });
+
+    const uniqueUrl = `https://www.threads.net/@user/post/TEST_APPROVE_TOPIC_${Date.now()}`;
+    const draft = await prisma.mention.create({
+      data: {
+        linkAsli: uniqueUrl,
+        linkTernormalisasi: uniqueUrl,
+        teksPostingan: "",
+        sumberInput: "IMPOR",
+        status: "DRAF",
+        statusKanonik: "DIKETAHUI",
+      },
+    });
+
+    const reqWithText = new NextRequest(`${baseUrl}/api/drafts`, {
+      method: "POST",
+      headers: cookieHeader,
+      body: JSON.stringify({
+        id: draft.id,
+        action: "approve",
+        edits: {
+          teksPostingan:
+            "Aplikasi BTN Mobile kini semakin cepat dan mudah digunakan.",
+        },
+      }),
+    });
+
+    const resWithText = await draftsPost(reqWithText);
+    expect(resWithText.status).toBe(200);
+    const approvedJson = await resWithText.json();
+    expect(approvedJson.ok).toBe(true);
+    expect(approvedJson.mention.status).toBe("BARU");
+    expect(approvedJson.mention.teksPostingan).toContain("BTN Mobile");
+    expect(approvedJson.mention.topik).toBe("BTN Mobile");
+    expect(approvedJson.mention.penyediaAnalisis).toBe("keyword");
+    expect(approvedJson.mention.dikoreksiManual).toBe(true);
 
     // Bersihkan
     await prisma.mention.delete({ where: { id: draft.id } });

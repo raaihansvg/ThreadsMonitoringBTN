@@ -1,8 +1,4 @@
-import {
-  selectTopic,
-  CONFIGURED_TOPICS,
-  TopicDefinition,
-} from "./topicSelector";
+import { selectTopic, TopicDefinition } from "./topicSelector";
 
 export interface FallbackAnalysisResult {
   topik: string;
@@ -231,7 +227,7 @@ export function deduplicateKeywords(keywords: string[]): string[] {
  */
 export function analyzeFallback(
   text: string,
-  topics: TopicDefinition[] = CONFIGURED_TOPICS
+  topics: TopicDefinition[] = []
 ): FallbackAnalysisResult {
   const cleanText = (text || "").trim();
   const normalizedText = normalizeText(cleanText);
@@ -329,6 +325,6 @@ export function analyzeFallback(
     kataKunci: extractedKeywords,
     headline,
     ringkasan,
-    penyedia: "keyword_fallback",
+    penyedia: "keyword",
   };
 }

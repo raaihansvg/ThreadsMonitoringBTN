@@ -233,6 +233,57 @@ export function resetMentionRateLimit(key?: string): void {
 }
 
 /**
+ * Pembatasan frekuensi pemanggilan analisis POST /api/analyze
+ * (In-Memory Sliding Window 20x per menit per sesi/IP).
+ */
+const analyzeRateLimitMap = new Map<string, RateLimitBucket>();
+
+export function checkAnalyzeRateLimit(key: string): {
+  allowed: boolean;
+  remaining: number;
+  retryAfterSeconds?: number;
+} {
+  const now = Date.now();
+  const windowMs = 60 * 1000;
+  const maxAttempts = 20;
+
+  const record = analyzeRateLimitMap.get(key) || { attempts: [] };
+  record.attempts = record.attempts.filter((ts) => now - ts < windowMs);
+
+  if (record.attempts.length >= maxAttempts) {
+    const oldest = record.attempts[0];
+    const retryAfterSeconds = Math.ceil((oldest + windowMs - now) / 1000);
+    return {
+      allowed: false,
+      remaining: 0,
+      retryAfterSeconds: Math.max(1, retryAfterSeconds),
+    };
+  }
+
+  return {
+    allowed: true,
+    remaining: maxAttempts - record.attempts.length,
+  };
+}
+
+export function recordAnalyzeAttempt(key: string): void {
+  const now = Date.now();
+  const windowMs = 60 * 1000;
+  const record = analyzeRateLimitMap.get(key) || { attempts: [] };
+  record.attempts = record.attempts.filter((ts) => now - ts < windowMs);
+  record.attempts.push(now);
+  analyzeRateLimitMap.set(key, record);
+}
+
+export function resetAnalyzeRateLimit(key?: string): void {
+  if (key) {
+    analyzeRateLimitMap.delete(key);
+  } else {
+    analyzeRateLimitMap.clear();
+  }
+}
+
+/**
  * Proteksi CSRF: membandingkan Origin/Referer dengan Host aplikasi
  * untuk semua metode mutasi (POST, PUT, PATCH, DELETE).
  */
