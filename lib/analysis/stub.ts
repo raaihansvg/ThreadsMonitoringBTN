@@ -1,10 +1,19 @@
 import { Sentiment, Priority } from "@prisma/client";
 import { AnalysisInput, AnalysisProvider, AnalysisResult } from "./types";
 import { analyzeFallback } from "./fallbackAnalysis";
+import { TopicDefinition } from "./topicSelector";
 
-export class StubAnalysisProvider implements AnalysisProvider {
+export class KeywordAnalysisProvider implements AnalysisProvider {
+  name = "keyword";
+  private defaultTopics: TopicDefinition[];
+
+  constructor(defaultTopics: TopicDefinition[] = []) {
+    this.defaultTopics = defaultTopics;
+  }
+
   async analyze(input: AnalysisInput): Promise<AnalysisResult> {
-    const result = analyzeFallback(input.text);
+    const topics = input.topics || this.defaultTopics;
+    const result = analyzeFallback(input.text, topics);
     return {
       sentimen: result.sentimen as Sentiment,
       topik: result.topik,
@@ -12,7 +21,9 @@ export class StubAnalysisProvider implements AnalysisProvider {
       prioritas: result.prioritas as Priority,
       headline: result.headline,
       ringkasan: result.ringkasan,
-      penyedia: "keyword_fallback",
+      penyedia: "keyword",
     };
   }
 }
+
+export const StubAnalysisProvider = KeywordAnalysisProvider;

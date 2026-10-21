@@ -57,7 +57,6 @@ export default function DraftPage() {
     "Tapera",
     "Tabungan BTN",
     "Pelayanan & CS",
-    "Kompetitor",
     "Lainnya",
   ]);
 
