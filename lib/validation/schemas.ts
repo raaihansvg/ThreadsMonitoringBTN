@@ -37,6 +37,7 @@ export const createMentionSchema = z
     sumberInput: z.nativeEnum(InputSourceType).optional(),
     linkTernormalisasi: z.string().max(2048).optional(),
     statusKanonik: z.string().max(50).optional(),
+    dikoreksiManual: z.boolean().optional(),
   })
   .refine(
     (data) => {
@@ -138,3 +139,10 @@ export const importBatchSchema = z
     50,
     "Jumlah item impor melebihi batas (maksimal 50 item per transaksi)."
   );
+
+export const analyzeInputSchema = z.object({
+  text: z
+    .string({ required_error: "Teks wajib diisi." })
+    .min(1, "Teks tidak boleh kosong.")
+    .max(5000, "Teks terlalu panjang (maksimal 5000 karakter)."),
+});
