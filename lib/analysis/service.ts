@@ -120,7 +120,11 @@ export async function analyzeText(
     if (targetProviderName !== "keyword" && result.penyedia === "keyword") {
       fallbackDipakai = true;
     }
-  } catch {
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.warn(
+      `[Analysis] Penyedia '${targetProviderName}' gagal, fallback ke kamus: ${errorMessage}`
+    );
     // Fallback ke analisis kata kunci bila penyedia gagal atau schema tidak valid
     result = await keywordProvider.analyze({
       text: safeText,
