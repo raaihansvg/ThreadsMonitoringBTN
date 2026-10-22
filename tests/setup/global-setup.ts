@@ -26,4 +26,5 @@ export default function globalSetup() {
   }
 
   process.env.ANALYSIS_PROVIDER = "keyword";
+  delete process.env.RESEND_API_KEY;
 }

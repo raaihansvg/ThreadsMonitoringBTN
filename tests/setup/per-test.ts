@@ -22,8 +22,9 @@ if (
     "test-session-secret-at-least-32-characters-long-key-2026";
 }
 
-// Cegah panggilan jaringan ke LLM eksternal saat menjalankan tes
+// Cegah panggilan jaringan ke LLM eksternal dan Resend saat menjalankan tes
 process.env.ANALYSIS_PROVIDER = "keyword";
+delete process.env.RESEND_API_KEY;
 
 const cleaner = new PrismaClient({ datasourceUrl: testUrl });
 
