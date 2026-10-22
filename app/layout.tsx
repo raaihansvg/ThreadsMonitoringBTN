@@ -30,10 +30,10 @@ export default function RootLayout({
 }) {
   return (
     <html lang="id" className={plusJakarta.variable}>
-      <body className="min-h-screen bg-[#E4E9F2] p-3 font-sans text-[#0A192F] antialiased selection:bg-[#EBF3FF] selection:text-[#0055FF] md:p-6">
+      <body className="min-h-screen bg-[#E4E9F2] p-3 font-sans text-[#0A192F] antialiased selection:bg-[#EBF3FF] selection:text-[#0055FF] md:p-6 lg:px-8 lg:py-6">
         <AppProvider>
           {/* FRAME UTAMA BENTO */}
-          <div className="mx-auto max-w-[1440px] rounded-[36px] border border-white bg-[#F4F7FB] p-4 shadow-2xl md:p-7">
+          <div className="mx-auto w-full max-w-[1440px] rounded-[36px] border border-white bg-[#F4F7FB] p-4 shadow-2xl md:p-7 lg:max-w-[1920px]">
             {/* 1. TOP HEADER BAR */}
             <TopHeader />
 
