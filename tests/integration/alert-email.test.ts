@@ -255,4 +255,83 @@ describe("Integrasi Email Alert via Resend REST API", () => {
       })
     ).rejects.toThrow(/api\.resend\.com terdeteksi tanpa mock/i);
   });
+
+  it("7. Dua panggilan paralel dengan jenis + topik sama -> fetch dipanggil hanya sekali", async () => {
+    process.env.RESEND_API_KEY = "re_test_mock_key";
+    process.env.ALERT_EMAIL_TO = "admin@example.com";
+
+    let fetchCallCount = 0;
+    const fetchMock = vi.fn().mockImplementation(async () => {
+      fetchCallCount++;
+      // Simulasi latensi jaringan (20ms) agar panggilan paralel kedua berjalan saat panggilan pertama masih pending
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      return new Response(JSON.stringify({ id: "msg_parallel_1" }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    });
+    globalThis.fetch = fetchMock;
+
+    const alert1 = {
+      jenis: AlertType.LONJAKAN,
+      topik: "KPR BTN",
+      jumlah: 15,
+      sumberInput: InputSourceType.FORM,
+    };
+
+    const alert2 = {
+      jenis: AlertType.LONJAKAN,
+      topik: "KPR BTN",
+      jumlah: 20,
+      sumberInput: InputSourceType.FORM,
+    };
+
+    // Jalankan kedua pemanggilan secara paralel
+    const [result1, result2] = await Promise.all([
+      sendAlertEmail(alert1),
+      sendAlertEmail(alert2),
+    ]);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchCallCount).toBe(1);
+    expect(result1).toBe(true);
+    expect(result2).toBe(false);
+  });
+
+  it("8. Alert dari sumberInput CONTOH (Data Contoh) tidak mengirim email", async () => {
+    process.env.RESEND_API_KEY = "re_test_mock_key";
+    process.env.ALERT_EMAIL_TO = "admin@example.com";
+
+    const fetchMock = vi.fn();
+    globalThis.fetch = fetchMock;
+
+    // 8a. Pengujian langsung ke sendAlertEmail
+    const sampleAlert = {
+      jenis: AlertType.PERLU_PERHATIAN,
+      topik: "BTN Mobile",
+      jumlah: 1,
+      sumberInput: InputSourceType.CONTOH,
+    };
+
+    const result = await sendAlertEmail(sampleAlert);
+    expect(result).toBe(false);
+    expect(fetchMock).not.toHaveBeenCalled();
+
+    // 8b. Pengujian lewat triggerAlertsForMention
+    const mentionSample = {
+      id: "mention-sample-contoh-email",
+      topik: "BTN Mobile",
+      prioritas: Priority.PERLU_PERHATIAN,
+      sentimen: Sentiment.NEGATIF,
+      sumberInput: InputSourceType.CONTOH,
+      tanggalDitemukan: new Date(),
+    };
+
+    const alerts = await triggerAlertsForMention(mentionSample);
+    expect(alerts.length).toBeGreaterThan(0);
+    expect(alerts[0].sumberInput).toBe(InputSourceType.CONTOH);
+
+    await waitForPendingAlertEmails();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
 });

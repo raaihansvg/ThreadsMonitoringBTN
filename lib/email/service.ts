@@ -87,6 +87,11 @@ async function executeSendAlertEmail(
     return false;
   }
 
+  // 2. Alert dari sumberInput CONTOH (Data Contoh) tidak mengirim email
+  if (alert?.sumberInput === InputSourceType.CONTOH) {
+    return false;
+  }
+
   const apiKey = process.env.RESEND_API_KEY?.trim();
   const alertEmailTo = process.env.ALERT_EMAIL_TO?.trim();
 
@@ -119,7 +124,7 @@ async function executeSendAlertEmail(
 
   const topikText = alert.topik?.trim() || "Umum";
 
-  // 2. Anti-Spam: Cek apakah ada alert serupa (jenis + topik sama) dalam 5 menit terakhir di memori proses (Point 1)
+  // 3. Anti-Spam: Cek apakah ada alert serupa (jenis + topik sama) dalam 5 menit terakhir di memori proses
   const antiSpamKey = `${alert.jenis}:${topikText}`;
   const now = Date.now();
   const lastSent = lastSentTimestamps.get(antiSpamKey);
@@ -132,7 +137,10 @@ async function executeSendAlertEmail(
     return false;
   }
 
-  // 3. Format Pesan Email (Point 2)
+  // Reservasi waktu kirim di Map SEBELUM fetch untuk mencegah duplikasi pada panggilan paralel
+  lastSentTimestamps.set(antiSpamKey, now);
+
+  // 4. Format Pesan Email
   const subject = `[BTN Alert] ${jenisLabel} di ${topikText}`;
 
   const safeReason = reason ? maskPii(reason).maskedText : "";
@@ -160,7 +168,7 @@ async function executeSendAlertEmail(
 
   const bodyText = lines.join("\n");
 
-  // 4. Kirim ke Resend REST API dengan batas waktu 5 detik
+  // 5. Kirim ke Resend REST API dengan batas waktu 5 detik
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 5000);
 
@@ -184,13 +192,15 @@ async function executeSendAlertEmail(
       console.warn(
         `[sendAlertEmail] Resend API merespons status ${res.status}`
       );
+      // Hapus reservasi jika non-2xx agar bisa dicoba lagi
+      lastSentTimestamps.delete(antiSpamKey);
       return false;
     }
 
-    // Catat waktu kirim terakhir ke Map memori saat berhasil
-    lastSentTimestamps.set(antiSpamKey, Date.now());
     return true;
   } catch (error: unknown) {
+    // Hapus reservasi jika gagal (error/timeout) agar bisa dicoba lagi
+    lastSentTimestamps.delete(antiSpamKey);
     const isTimeout = error instanceof Error && error.name === "AbortError";
     console.warn(
       `[sendAlertEmail] Gagal mengirim email alert: ${

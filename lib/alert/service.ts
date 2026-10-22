@@ -74,10 +74,12 @@ export async function triggerAlertsForMention(mention: MentionAlertInput) {
         update: {},
       });
       alertsCreated.push(alert);
-      void sendAlertEmail(
-        alert,
-        "Mention mendesak dengan prioritas PERLU_PERHATIAN terdeteksi"
-      ).catch(() => {});
+      if (alert.sumberInput !== InputSourceType.CONTOH) {
+        void sendAlertEmail(
+          alert,
+          "Mention mendesak dengan prioritas PERLU_PERHATIAN terdeteksi"
+        ).catch(() => {});
+      }
     } catch {
       // Abaikan jika terjadi konflik konkuren
     }
@@ -173,7 +175,9 @@ export async function triggerAlertsForMention(mention: MentionAlertInput) {
           },
         });
         alertsCreated.push(alert);
-        void sendAlertEmail(alert, spike.reason).catch(() => {});
+        if (alert.sumberInput !== InputSourceType.CONTOH) {
+          void sendAlertEmail(alert, spike.reason).catch(() => {});
+        }
       } catch {
         // Abaikan jika terjadi konflik konkuren
       }
