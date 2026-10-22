@@ -1,5 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { GeminiAnalysisProvider } from "@/lib/analysis/gemini";
+import {
+  GeminiAnalysisProvider,
+  getGeminiTimeoutMs,
+  DEFAULT_GEMINI_TIMEOUT_MS,
+} from "@/lib/analysis/gemini";
 import { TopicDefinition } from "@/lib/analysis/topicSelector";
 
 describe("GeminiAnalysisProvider Unit Tests (Tahap 2C)", () => {
@@ -178,9 +182,10 @@ describe("GeminiAnalysisProvider Unit Tests (Tahap 2C)", () => {
     ).rejects.toThrow(/format JSON yang valid/i);
   });
 
-  it("5. menggunakan default model gemini-3.5-flash-lite dan menangani timeout 30 detik", async () => {
+  it("5. menggunakan default model gemini-3.5-flash-lite dan menangani default timeout 15 detik", async () => {
     process.env.GEMINI_API_KEY = "rahasia-gemini-key";
     delete process.env.GEMINI_MODEL; // Pastikan default model digunakan
+    delete process.env.GEMINI_TIMEOUT_MS; // Pastikan default timeout digunakan
 
     let capturedUrl = "";
     global.fetch = vi.fn().mockImplementation(async (url) => {
@@ -194,10 +199,78 @@ describe("GeminiAnalysisProvider Unit Tests (Tahap 2C)", () => {
 
     await expect(
       provider.analyze({ text: "Postingan Threads BTN" })
-    ).rejects.toThrow("Gemini API timeout setelah 30 detik.");
+    ).rejects.toThrow("Gemini API timeout setelah 15 detik.");
 
     expect(capturedUrl).toContain(
       "models/gemini-3.5-flash-lite:generateContent"
     );
+  });
+
+  it("6. membaca GEMINI_TIMEOUT_MS dari env dan menampilkan nilai timeout yang benar pada error", async () => {
+    process.env.GEMINI_API_KEY = "rahasia-gemini-key";
+    process.env.GEMINI_TIMEOUT_MS = "20000";
+
+    global.fetch = vi.fn().mockImplementation(async () => {
+      const abortError = new Error("This operation was aborted");
+      abortError.name = "AbortError";
+      throw abortError;
+    });
+
+    const provider = new GeminiAnalysisProvider(testTopics);
+
+    await expect(
+      provider.analyze({ text: "Postingan Threads BTN" })
+    ).rejects.toThrow("Gemini API timeout setelah 20 detik.");
+  });
+
+  it("7. fallback ke default 15000 ms jika GEMINI_TIMEOUT_MS tidak valid atau <= 0", async () => {
+    process.env.GEMINI_API_KEY = "rahasia-gemini-key";
+
+    global.fetch = vi.fn().mockImplementation(async () => {
+      const abortError = new Error("This operation was aborted");
+      abortError.name = "AbortError";
+      throw abortError;
+    });
+
+    const provider = new GeminiAnalysisProvider(testTopics);
+
+    // Kasus bukan angka
+    process.env.GEMINI_TIMEOUT_MS = "bukan_angka";
+    await expect(
+      provider.analyze({ text: "Postingan Threads BTN" })
+    ).rejects.toThrow("Gemini API timeout setelah 15 detik.");
+
+    // Kasus 0
+    process.env.GEMINI_TIMEOUT_MS = "0";
+    await expect(
+      provider.analyze({ text: "Postingan Threads BTN" })
+    ).rejects.toThrow("Gemini API timeout setelah 15 detik.");
+
+    // Kasus negatif
+    process.env.GEMINI_TIMEOUT_MS = "-5000";
+    await expect(
+      provider.analyze({ text: "Postingan Threads BTN" })
+    ).rejects.toThrow("Gemini API timeout setelah 15 detik.");
+  });
+
+  it("8. getGeminiTimeoutMs membaca integer secara aman dan mematuhi batas default", () => {
+    delete process.env.GEMINI_TIMEOUT_MS;
+    expect(getGeminiTimeoutMs()).toBe(DEFAULT_GEMINI_TIMEOUT_MS);
+    expect(DEFAULT_GEMINI_TIMEOUT_MS).toBe(15000);
+
+    process.env.GEMINI_TIMEOUT_MS = "18000";
+    expect(getGeminiTimeoutMs()).toBe(18000);
+
+    process.env.GEMINI_TIMEOUT_MS = "   25000   ";
+    expect(getGeminiTimeoutMs()).toBe(25000);
+
+    process.env.GEMINI_TIMEOUT_MS = "invalid";
+    expect(getGeminiTimeoutMs()).toBe(15000);
+
+    process.env.GEMINI_TIMEOUT_MS = "0";
+    expect(getGeminiTimeoutMs()).toBe(15000);
+
+    process.env.GEMINI_TIMEOUT_MS = "-10";
+    expect(getGeminiTimeoutMs()).toBe(15000);
   });
 });

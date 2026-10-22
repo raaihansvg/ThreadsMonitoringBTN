@@ -13,6 +13,8 @@ import {
   Loader2,
 } from "lucide-react";
 
+import { reanalyzeDraftClient } from "@/lib/draft/reanalyze";
+
 interface DraftMention {
   id: string;
   linkAsli: string;
@@ -173,6 +175,8 @@ export default function DraftPage() {
   };
 
   const handleReanalyze = async (d: DraftMention) => {
+    if (analyzingDraftId) return;
+
     if (!d.teksPostingan || d.teksPostingan.trim() === "") {
       showToast("Draf tidak memiliki teks untuk dianalisis.", "error");
       return;
@@ -190,30 +194,17 @@ export default function DraftPage() {
       confirmOverwrite = true;
     }
 
-    setAnalyzingDraftId(d.id);
-    try {
-      const res = await fetch(`/api/drafts/${d.id}/analyze`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ confirmOverwrite }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (res.ok && data.ok) {
-        if (data.fallback) {
-          showToast("Analisis AI gagal, hasil lama dipertahankan.", "info");
-        } else {
-          showToast(data.message || "Analisis ulang selesai.", "success");
-        }
+    await reanalyzeDraftClient({
+      draftId: d.id,
+      confirmOverwrite,
+      onStart: () => setAnalyzingDraftId(d.id),
+      onFinish: () => setAnalyzingDraftId(null),
+      onToast: (msg, type) => showToast(msg, type),
+      onSuccess: () => {
         setEditingId(null);
         triggerRefresh();
-      } else {
-        showToast(data.error || "Gagal melakukan analisis ulang.", "error");
-      }
-    } catch {
-      showToast("Terjadi kendala jaringan saat analisis ulang.", "error");
-    } finally {
-      setAnalyzingDraftId(null);
-    }
+      },
+    });
   };
 
   return (

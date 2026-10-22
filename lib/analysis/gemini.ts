@@ -34,6 +34,18 @@ interface GeminiAnalysisJson {
   kataKunci?: unknown;
 }
 
+export const DEFAULT_GEMINI_TIMEOUT_MS = 15000;
+
+export function getGeminiTimeoutMs(): number {
+  const envVal = process.env.GEMINI_TIMEOUT_MS;
+  if (!envVal) return DEFAULT_GEMINI_TIMEOUT_MS;
+  const parsed = parseInt(envVal, 10);
+  if (Number.isNaN(parsed) || parsed <= 0) {
+    return DEFAULT_GEMINI_TIMEOUT_MS;
+  }
+  return parsed;
+}
+
 export class GeminiAnalysisProvider implements AnalysisProvider {
   name = "gemini";
   private defaultTopics: TopicDefinition[];
@@ -104,8 +116,9 @@ ${safeText}
       model
     )}:generateContent?key=${encodeURIComponent(apiKey)}`;
 
+    const timeoutMs = getGeminiTimeoutMs();
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 30000);
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
     let response: Response;
     try {
@@ -119,7 +132,10 @@ ${safeText}
       });
     } catch (err: unknown) {
       if (err instanceof Error && err.name === "AbortError") {
-        throw new Error("Gemini API timeout setelah 30 detik.");
+        const timeoutSeconds = Math.round(timeoutMs / 1000);
+        const timeoutDisplay =
+          timeoutSeconds > 0 ? `${timeoutSeconds} detik` : `${timeoutMs} ms`;
+        throw new Error(`Gemini API timeout setelah ${timeoutDisplay}.`);
       }
       const fetchMessage =
         err instanceof Error ? err.message : "Kesalahan jaringan";
