@@ -22,6 +22,9 @@ if (
     "test-session-secret-at-least-32-characters-long-key-2026";
 }
 
+// Cegah panggilan jaringan ke LLM eksternal saat menjalankan tes
+process.env.ANALYSIS_PROVIDER = "keyword";
+
 const cleaner = new PrismaClient({ datasourceUrl: testUrl });
 
 const TABLES = [

@@ -4,6 +4,7 @@ import { maskPii } from "@/lib/pii";
 import { TopicDefinition } from "./topicSelector";
 import { AnalysisProvider, AnalysisResult, AnalyzeOptions } from "./types";
 import { KeywordAnalysisProvider } from "./stub";
+import { GeminiAnalysisProvider } from "./gemini";
 import { z } from "zod";
 
 export function createAnalysisResultSchema(allowedTopics: string[]) {
@@ -36,6 +37,12 @@ export function registerAnalysisProvider(
   providerRegistry.set(name.toLowerCase().trim(), factory);
 }
 
+// Daftarkan penyedia bawaan Gemini
+registerAnalysisProvider(
+  "gemini",
+  (topics) => new GeminiAnalysisProvider(topics)
+);
+
 /**
  * Registry / Factory untuk mendapatkan instance AnalysisProvider
  */
@@ -49,6 +56,8 @@ export function getAnalysisProvider(
     return customFactory(topics);
   }
   switch (normalized) {
+    case "gemini":
+      return new GeminiAnalysisProvider(topics);
     case "keyword":
     default:
       return new KeywordAnalysisProvider(topics);
