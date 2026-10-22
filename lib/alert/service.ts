@@ -13,6 +13,7 @@ import {
 } from "@/lib/time";
 import { getThresholds } from "@/lib/config/thresholds";
 import { detectSpike } from "@/lib/alert/spike";
+import { sendAlertEmail } from "@/lib/email/service";
 
 export interface MentionAlertInput {
   id: string;
@@ -73,6 +74,10 @@ export async function triggerAlertsForMention(mention: MentionAlertInput) {
         update: {},
       });
       alertsCreated.push(alert);
+      void sendAlertEmail(
+        alert,
+        "Mention mendesak dengan prioritas PERLU_PERHATIAN terdeteksi"
+      ).catch(() => {});
     } catch {
       // Abaikan jika terjadi konflik konkuren
     }
@@ -168,6 +173,7 @@ export async function triggerAlertsForMention(mention: MentionAlertInput) {
           },
         });
         alertsCreated.push(alert);
+        void sendAlertEmail(alert, spike.reason).catch(() => {});
       } catch {
         // Abaikan jika terjadi konflik konkuren
       }
