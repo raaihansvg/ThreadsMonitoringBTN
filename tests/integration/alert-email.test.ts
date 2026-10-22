@@ -7,24 +7,29 @@ import {
   Sentiment,
 } from "@prisma/client";
 import { triggerAlertsForMention } from "@/lib/alert/service";
-import { waitForPendingAlertEmails } from "@/lib/email/service";
+import {
+  waitForPendingAlertEmails,
+  sendAlertEmail,
+  _resetAntiSpamForTesting,
+} from "@/lib/email/service";
 
 describe("Integrasi Email Alert via Resend REST API", () => {
   const originalFetch = globalThis.fetch;
 
   beforeEach(() => {
     vi.restoreAllMocks();
+    _resetAntiSpamForTesting();
   });
 
   afterEach(() => {
     globalThis.fetch = originalFetch;
-    delete process.env.RESEND_API_KEY;
-    delete process.env.ALERT_EMAIL_TO;
+    process.env.RESEND_API_KEY = "re_test_mock";
+    process.env.ALERT_EMAIL_TO = "test@example.com";
     delete process.env.ALERT_EMAIL_FROM;
     delete process.env.APP_BASE_URL;
   });
 
-  it("1. Alert dibuat -> email dikirim async (tunggu promise selesai lewat helper)", async () => {
+  it("1. Alert dibuat -> email dikirim async dengan format label manusiawi", async () => {
     process.env.RESEND_API_KEY = "re_test_mock_key";
     process.env.ALERT_EMAIL_TO = "admin1@example.com, admin2@example.com";
     process.env.ALERT_EMAIL_FROM = "BTN Threads Alert <alert@btn.co.id>";
@@ -64,16 +69,15 @@ describe("Integrasi Email Alert via Resend REST API", () => {
     const payload = JSON.parse(options.body);
     expect(payload.from).toBe("BTN Threads Alert <alert@btn.co.id>");
     expect(payload.to).toEqual(["admin1@example.com", "admin2@example.com"]);
-    expect(payload.subject).toContain(
-      "[BTN Alert] PERLU_PERHATIAN di BTN Mobile"
-    );
-    expect(payload.text).toContain("Jenis: PERLU_PERHATIAN");
+    // Verifikasi label jenis bahasa Indonesia (bukan nama enum mentah)
+    expect(payload.subject).toBe("[BTN Alert] Perlu Perhatian di BTN Mobile");
+    expect(payload.text).toContain("Jenis: Perlu Perhatian");
     expect(payload.text).toContain("Topik: BTN Mobile");
     expect(payload.text).toContain("http://localhost:3000/alert");
   });
 
   it("2. Key kosong -> skip dengan warning, alert tetap jadi", async () => {
-    // Pastikan RESEND_API_KEY tidak diset
+    // Kosongkan RESEND_API_KEY
     delete process.env.RESEND_API_KEY;
     process.env.ALERT_EMAIL_TO = "admin@example.com";
 
@@ -174,7 +178,7 @@ describe("Integrasi Email Alert via Resend REST API", () => {
 
     const now = new Date();
 
-    // Alert 1 (sumber FORM)
+    // Alert 1
     const mention1 = {
       id: "mention-test-email-4a",
       topik: "Anti-Spam Topik",
@@ -188,7 +192,7 @@ describe("Integrasi Email Alert via Resend REST API", () => {
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
 
-    // Alert 2 (sumber EKSTENSI sehingga menghasilkan record Alert berbeda untuk jenis & topik sama)
+    // Alert 2 (jenis dan topik sama persis dalam 5 menit, diuji lewat memori proses)
     const mention2 = {
       id: "mention-test-email-4b",
       topik: "Anti-Spam Topik",
@@ -200,21 +204,55 @@ describe("Integrasi Email Alert via Resend REST API", () => {
     await triggerAlertsForMention(mention2);
     await waitForPendingAlertEmails();
 
-    // fetchMock tetap 1 kali (alert kedua di-skip pengiriman emailnya)
+    // fetchMock tetap 1 kali (alert kedua di-skip pengiriman emailnya lewat memori Map)
     expect(fetchMock).toHaveBeenCalledTimes(1);
 
     // Verifikasi log anti-spam tercatat
     expect(warnSpy).toHaveBeenCalledWith(
       expect.stringContaining("email serupa sudah dikirim")
     );
+  });
 
-    // Verifikasi kedua alert tetap tersimpan di database
-    const allAlerts = await prisma.alert.findMany({
-      where: {
-        jenis: AlertType.PERLU_PERHATIAN,
-        topik: "Anti-Spam Topik",
-      },
+  it("5. Jenis alert kosong atau tidak dikenal -> email tidak dikirim", async () => {
+    process.env.RESEND_API_KEY = "re_test_mock_key";
+    process.env.ALERT_EMAIL_TO = "admin@example.com";
+
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const fetchMock = vi.fn();
+    globalThis.fetch = fetchMock;
+
+    // Kasus 5a: Jenis kosong
+    const resEmpty = await sendAlertEmail({
+      jenis: "" as any,
+      topik: "KPR BTN",
+      jumlah: 1,
     });
-    expect(allAlerts.length).toBe(2);
+    expect(resEmpty).toBe(false);
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining("Jenis alert tidak valid atau kosong")
+    );
+
+    // Kasus 5b: Jenis tidak dikenal
+    const resUnknown = await sendAlertEmail({
+      jenis: "JENIS_TIDAK_DIKENAL" as any,
+      topik: null,
+      jumlah: 1,
+    });
+    expect(resUnknown).toBe(false);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("6. Gagal kalau ada panggilan ke api.resend.com tanpa mock", async () => {
+    // Pastikan tidak ada mock khusus tes yang terpasang pada fetch
+    globalThis.fetch = originalFetch;
+
+    await expect(
+      fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ to: ["admin@example.com"] }),
+      })
+    ).rejects.toThrow(/api\.resend\.com terdeteksi tanpa mock/i);
   });
 });

@@ -26,5 +26,6 @@ export default function globalSetup() {
   }
 
   process.env.ANALYSIS_PROVIDER = "keyword";
-  delete process.env.RESEND_API_KEY;
+  process.env.RESEND_API_KEY = "re_test_mock";
+  process.env.ALERT_EMAIL_TO = "test@example.com";
 }

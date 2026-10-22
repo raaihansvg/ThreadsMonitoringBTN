@@ -1,12 +1,21 @@
+import dns from "node:dns";
 import { Sentiment, Priority } from "@prisma/client";
 import { AnalysisInput, AnalysisProvider, AnalysisResult } from "./types";
 import { TopicDefinition } from "./topicSelector";
 import { maskPii } from "@/lib/pii";
 
+// Prioritaskan IPv4 agar fetch Node.js di Linux tidak tertahan timeout IPv6
+dns.setDefaultResultOrder("ipv4first");
+
+interface GeminiPart {
+  text?: string;
+  thought?: boolean;
+}
+
 interface GeminiGenerateContentResponse {
   candidates?: Array<{
     content?: {
-      parts?: Array<{ text?: string }>;
+      parts?: GeminiPart[];
     };
   }>;
   error?: {
@@ -76,7 +85,7 @@ Teks postingan untuk dianalisis:
 ${safeText}
 """`;
 
-    const requestBody = {
+    const requestBody: Record<string, unknown> = {
       contents: [
         {
           parts: [{ text: promptText }],
@@ -85,6 +94,9 @@ ${safeText}
       generationConfig: {
         responseMimeType: "application/json",
         temperature: 0.1,
+        ...(model.includes("3.5") || model.includes("3-")
+          ? { thinkingConfig: { thinkingLevel: "MINIMAL" } }
+          : {}),
       },
     };
 
@@ -93,7 +105,7 @@ ${safeText}
     )}:generateContent?key=${encodeURIComponent(apiKey)}`;
 
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 8000);
+    const timeoutId = setTimeout(() => controller.abort(), 30000);
 
     let response: Response;
     try {
@@ -107,7 +119,7 @@ ${safeText}
       });
     } catch (err: unknown) {
       if (err instanceof Error && err.name === "AbortError") {
-        throw new Error("Gemini API timeout setelah 8 detik.");
+        throw new Error("Gemini API timeout setelah 30 detik.");
       }
       const fetchMessage =
         err instanceof Error ? err.message : "Kesalahan jaringan";
@@ -133,8 +145,11 @@ ${safeText}
     let rawResponseText = "";
     try {
       const data = (await response.json()) as GeminiGenerateContentResponse;
-      rawResponseText =
-        data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || "";
+      const parts = data.candidates?.[0]?.content?.parts || [];
+      const textPart =
+        parts.find((p) => !p.thought && typeof p.text === "string") ||
+        parts[parts.length - 1];
+      rawResponseText = textPart?.text?.trim() || "";
     } catch {
       throw new Error("Respons Gemini API bukan JSON yang dapat dibaca.");
     }

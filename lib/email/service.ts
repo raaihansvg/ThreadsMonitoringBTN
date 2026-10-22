@@ -14,21 +14,22 @@
  *
  * Karakteristik Operasional:
  * - Non-blocking: fungsi dipanggil secara asinkron tanpa mengganggu alur simpan mention.
- * - Anti-spam: Memeriksa riwayat alert 5 menit terakhir untuk jenis & topik yang sama.
+ * - Anti-spam: Menyimpan waktu kirim terakhir per kunci (jenis + topik) di Map memori proses (jendela 5 menit).
+ *   Catatan Arsitektur: Map memori proses bersifat lokal per worker/instance Node.js dan tidak
+ *   berjalan lintas instance pada arsitektur serverless (misal multi-region Vercel functions).
  * - Keamanan: Memfilter teks menggunakan maskPii dan tidak mencatat (log) API key.
  * - Timeout: Batas waktu permintaan jaringan maksimal 5 detik via AbortController.
  */
 
-import { prisma } from "@/lib/prisma";
 import { AlertType, InputSourceType } from "@prisma/client";
 import { maskPii } from "@/lib/pii";
 
 export interface AlertEmailPayload {
   id?: string;
-  jenis: AlertType;
-  topik: string | null;
+  jenis?: AlertType | string | null;
+  topik?: string | null;
   periode?: string | null;
-  jumlah: number;
+  jumlah?: number;
   ambangDipakai?: number | null;
   sumberInput?: InputSourceType;
   dibuatPada?: Date;
@@ -36,6 +37,17 @@ export interface AlertEmailPayload {
 
 // Pelacak tugas email yang sedang berjalan untuk kebutuhan pengujian asinkron yang deterministik
 const pendingEmailTasks = new Set<Promise<boolean>>();
+
+// Map memori proses untuk anti-spam: key = `${jenis}:${topik}`, value = timestamp waktu kirim terakhir (ms)
+const lastSentTimestamps = new Map<string, number>();
+const ANTI_SPAM_WINDOW_MS = 5 * 60 * 1000; // 5 menit
+
+/**
+ * Helper untuk mereset memori anti-spam (digunakan pada pengujian).
+ */
+export function _resetAntiSpamForTesting(): void {
+  lastSentTimestamps.clear();
+}
 
 /**
  * Helper pengujian: Menunggu semua tugas pengiriman email yang sedang aktif selesai diproses.
@@ -45,10 +57,36 @@ export function waitForPendingAlertEmails(): Promise<boolean[]> {
   return Promise.all(Array.from(pendingEmailTasks));
 }
 
+/**
+ * Memetakan enum AlertType ke label ramah pengguna bahasa Indonesia.
+ * Mengembalikan null jika jenis alert tidak dikenal atau kosong.
+ */
+export function getAlertJenisLabel(
+  jenis?: AlertType | string | null
+): "Lonjakan" | "Perlu Perhatian" | null {
+  if (!jenis) return null;
+  if (jenis === AlertType.LONJAKAN || jenis === "LONJAKAN") {
+    return "Lonjakan";
+  }
+  if (jenis === AlertType.PERLU_PERHATIAN || jenis === "PERLU_PERHATIAN") {
+    return "Perlu Perhatian";
+  }
+  return null;
+}
+
 async function executeSendAlertEmail(
   alert: AlertEmailPayload,
   reason?: string
 ): Promise<boolean> {
+  // 1. Validasi jenis alert (Point 3)
+  const jenisLabel = getAlertJenisLabel(alert?.jenis);
+  if (!jenisLabel) {
+    console.warn(
+      `[sendAlertEmail] Jenis alert tidak valid atau kosong: "${alert?.jenis}". Pengiriman email dibatalkan.`
+    );
+    return false;
+  }
+
   const apiKey = process.env.RESEND_API_KEY?.trim();
   const alertEmailTo = process.env.ALERT_EMAIL_TO?.trim();
 
@@ -79,46 +117,31 @@ async function executeSendAlertEmail(
     process.env.APP_BASE_URL?.trim() || "http://localhost:3000"
   ).replace(/\/+$/, "");
 
-  // Anti-Spam: Cek apakah ada alert serupa (jenis + topik sama) dalam 5 menit terakhir
-  try {
-    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
-    const recentAlert = await prisma.alert.findFirst({
-      where: {
-        ...(alert.id ? { id: { not: alert.id } } : {}),
-        jenis: alert.jenis,
-        topik: alert.topik ?? null,
-        dibuatPada: { gte: fiveMinutesAgo },
-      },
-      orderBy: { dibuatPada: "desc" },
-    });
+  const topikText = alert.topik?.trim() || "Umum";
 
-    if (recentAlert) {
-      const diffMs = Date.now() - recentAlert.dibuatPada.getTime();
-      const diffMinutes = Math.max(1, Math.round(diffMs / 60000));
-      console.warn(
-        `[sendAlertEmail] Email di-skip: email serupa sudah dikirim ${diffMinutes} menit lalu untuk ${alert.jenis} - ${alert.topik || "Umum"}`
-      );
-      return false;
-    }
-  } catch (dbError) {
+  // 2. Anti-Spam: Cek apakah ada alert serupa (jenis + topik sama) dalam 5 menit terakhir di memori proses (Point 1)
+  const antiSpamKey = `${alert.jenis}:${topikText}`;
+  const now = Date.now();
+  const lastSent = lastSentTimestamps.get(antiSpamKey);
+
+  if (lastSent && now - lastSent < ANTI_SPAM_WINDOW_MS) {
+    const diffMinutes = Math.max(1, Math.round((now - lastSent) / 60000));
     console.warn(
-      `[sendAlertEmail] Gagal mengecek anti-spam di database: ${
-        dbError instanceof Error ? dbError.message : String(dbError)
-      }`
+      `[sendAlertEmail] Email di-skip: email serupa sudah dikirim ${diffMinutes} menit lalu untuk ${jenisLabel} - ${topikText}`
     );
+    return false;
   }
 
-  // Format Pesan Email
-  const topikText = alert.topik?.trim() || "Umum";
-  const subject = `[BTN Alert] ${alert.jenis} di ${topikText}`;
+  // 3. Format Pesan Email (Point 2)
+  const subject = `[BTN Alert] ${jenisLabel} di ${topikText}`;
 
   const safeReason = reason ? maskPii(reason).maskedText : "";
   const lines: string[] = [
     "Alert Baru Terdeteksi - BTN Threads Monitoring",
     "==============================================",
-    `Jenis: ${alert.jenis}`,
+    `Jenis: ${jenisLabel}`,
     `Topik: ${topikText}`,
-    `Jumlah Mention: ${alert.jumlah}`,
+    `Jumlah Mention: ${alert.jumlah ?? 1}`,
   ];
 
   if (alert.ambangDipakai != null) {
@@ -137,7 +160,7 @@ async function executeSendAlertEmail(
 
   const bodyText = lines.join("\n");
 
-  // Kirim ke Resend REST API dengan batas waktu 5 detik
+  // 4. Kirim ke Resend REST API dengan batas waktu 5 detik
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 5000);
 
@@ -164,6 +187,8 @@ async function executeSendAlertEmail(
       return false;
     }
 
+    // Catat waktu kirim terakhir ke Map memori saat berhasil
+    lastSentTimestamps.set(antiSpamKey, Date.now());
     return true;
   } catch (error: unknown) {
     const isTimeout = error instanceof Error && error.name === "AbortError";
