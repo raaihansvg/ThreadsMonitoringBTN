@@ -177,4 +177,25 @@ describe("GeminiAnalysisProvider Unit Tests (Tahap 2C)", () => {
       provider.analyze({ text: "Postingan Threads" })
     ).rejects.toThrow(/format JSON yang valid/i);
   });
+
+  it("5. menggunakan default model gemini-1.5-flash dan menangani timeout 15 detik", async () => {
+    process.env.GEMINI_API_KEY = "rahasia-gemini-key";
+    delete process.env.GEMINI_MODEL; // Pastikan default model digunakan
+
+    let capturedUrl = "";
+    global.fetch = vi.fn().mockImplementation(async (url) => {
+      capturedUrl = String(url);
+      const abortError = new Error("This operation was aborted");
+      abortError.name = "AbortError";
+      throw abortError;
+    });
+
+    const provider = new GeminiAnalysisProvider(testTopics);
+
+    await expect(
+      provider.analyze({ text: "Postingan Threads BTN" })
+    ).rejects.toThrow("Gemini API timeout setelah 15 detik.");
+
+    expect(capturedUrl).toContain("models/gemini-1.5-flash:generateContent");
+  });
 });

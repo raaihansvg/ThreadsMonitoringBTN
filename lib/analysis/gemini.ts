@@ -39,7 +39,7 @@ export class GeminiAnalysisProvider implements AnalysisProvider {
       throw new Error("GEMINI_API_KEY belum dikonfigurasi.");
     }
 
-    const model = process.env.GEMINI_MODEL?.trim() || "gemini-flash";
+    const model = process.env.GEMINI_MODEL?.trim() || "gemini-1.5-flash";
 
     // Pastikan teks melewati penyamaran PII sebelum dikirim ke API eksternal
     const { maskedText: safeText } = maskPii(input.text || "");
@@ -92,6 +92,9 @@ ${safeText}
       model
     )}:generateContent?key=${encodeURIComponent(apiKey)}`;
 
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000);
+
     let response: Response;
     try {
       response = await fetch(endpoint, {
@@ -100,11 +103,17 @@ ${safeText}
           "Content-Type": "application/json",
         },
         body: JSON.stringify(requestBody),
+        signal: controller.signal,
       });
     } catch (err: unknown) {
+      if (err instanceof Error && err.name === "AbortError") {
+        throw new Error("Gemini API timeout setelah 15 detik.");
+      }
       const fetchMessage =
         err instanceof Error ? err.message : "Kesalahan jaringan";
       throw new Error(`Gagal menghubungi Gemini API: ${fetchMessage}`);
+    } finally {
+      clearTimeout(timeoutId);
     }
 
     if (!response.ok) {
