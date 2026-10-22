@@ -279,7 +279,7 @@ export function ModalInput() {
     setStep(2);
 
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 3000);
+    const timeoutId = setTimeout(() => controller.abort(), 12000);
 
     try {
       const res = await fetch("/api/analyze", {

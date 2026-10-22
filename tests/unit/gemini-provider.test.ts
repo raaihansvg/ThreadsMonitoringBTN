@@ -178,7 +178,7 @@ describe("GeminiAnalysisProvider Unit Tests (Tahap 2C)", () => {
     ).rejects.toThrow(/format JSON yang valid/i);
   });
 
-  it("5. menggunakan default model gemini-1.5-flash dan menangani timeout 15 detik", async () => {
+  it("5. menggunakan default model gemini-3.5-flash-lite dan menangani timeout 8 detik", async () => {
     process.env.GEMINI_API_KEY = "rahasia-gemini-key";
     delete process.env.GEMINI_MODEL; // Pastikan default model digunakan
 
@@ -194,8 +194,10 @@ describe("GeminiAnalysisProvider Unit Tests (Tahap 2C)", () => {
 
     await expect(
       provider.analyze({ text: "Postingan Threads BTN" })
-    ).rejects.toThrow("Gemini API timeout setelah 15 detik.");
+    ).rejects.toThrow("Gemini API timeout setelah 8 detik.");
 
-    expect(capturedUrl).toContain("models/gemini-1.5-flash:generateContent");
+    expect(capturedUrl).toContain(
+      "models/gemini-3.5-flash-lite:generateContent"
+    );
   });
 });
