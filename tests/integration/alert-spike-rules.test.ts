@@ -219,4 +219,86 @@ describe("Aturan Alert & Spike Satu Logika (Tahap 3E - Item 4)", () => {
     });
     expect(realAlerts.length).toBe(0);
   });
+
+  it("mention kedua dengan jenis + topik + hari sama setelah alert pertama ditandai dibaca -> alert muncul lagi sebagai belum dibaca dan jumlah bertambah", async () => {
+    const now = new Date();
+    const periode = formatWIBFullDate(now);
+
+    // 1. Simpan mention pertama berprioritas PERLU_PERHATIAN
+    const res1 = await postMention(
+      new NextRequest("http://localhost:3000/api/mentions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Cookie: `petugas_session=${sessionToken}`,
+        },
+        body: JSON.stringify({
+          linkAsli: "https://www.threads.com/@user/post/alert_repeat_1",
+          teksPostingan:
+            "Gangguan saldo berkurang di BTN Mobile saat transaksi transfer.",
+          topik: "BTN Mobile",
+          sentimen: "NEGATIF",
+          prioritas: Priority.PERLU_PERHATIAN,
+          sumberInput: InputSourceType.FORM,
+        }),
+      })
+    );
+    expect(res1.status).toBe(200);
+
+    // Verifikasi alert pertama dibuat: dibaca = false, jumlah = 1
+    const alert1 = await prisma.alert.findUnique({
+      where: {
+        jenis_topik_periode_sumberInput: {
+          jenis: AlertType.PERLU_PERHATIAN,
+          topik: "BTN Mobile",
+          periode,
+          sumberInput: InputSourceType.FORM,
+        },
+      },
+    });
+    expect(alert1).not.toBeNull();
+    expect(alert1?.dibaca).toBe(false);
+    expect(alert1?.jumlah).toBe(1);
+
+    // 2. Tandai alert pertama sebagai sudah dibaca
+    await prisma.alert.update({
+      where: { id: alert1!.id },
+      data: { dibaca: true },
+    });
+
+    const alertAfterRead = await prisma.alert.findUnique({
+      where: { id: alert1!.id },
+    });
+    expect(alertAfterRead?.dibaca).toBe(true);
+
+    // 3. Simpan mention kedua dengan jenis, topik, dan hari yang sama
+    const res2 = await postMention(
+      new NextRequest("http://localhost:3000/api/mentions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Cookie: `petugas_session=${sessionToken}`,
+        },
+        body: JSON.stringify({
+          linkAsli: "https://www.threads.com/@user/post/alert_repeat_2",
+          teksPostingan:
+            "Keluhan mendesak kedua: saldo terpotong lagi di BTN Mobile.",
+          topik: "BTN Mobile",
+          sentimen: "NEGATIF",
+          prioritas: Priority.PERLU_PERHATIAN,
+          sumberInput: InputSourceType.FORM,
+        }),
+      })
+    );
+    expect(res2.status).toBe(200);
+
+    // 4. Verifikasi alert muncul lagi sebagai belum dibaca (dibaca: false) dan jumlah bertambah (jumlah: 2)
+    const updatedAlert = await prisma.alert.findUnique({
+      where: { id: alert1!.id },
+    });
+    expect(updatedAlert).not.toBeNull();
+    expect(updatedAlert?.id).toBe(alert1!.id);
+    expect(updatedAlert?.dibaca).toBe(false);
+    expect(updatedAlert?.jumlah).toBe(2);
+  });
 });

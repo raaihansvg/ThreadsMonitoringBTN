@@ -71,7 +71,12 @@ export async function triggerAlertsForMention(mention: MentionAlertInput) {
           dibaca: false,
           sumberInput: mention.sumberInput,
         },
-        update: {},
+        update: {
+          dibaca: false,
+          jumlah: {
+            increment: 1,
+          },
+        },
       });
       alertsCreated.push(alert);
       if (alert.sumberInput !== InputSourceType.CONTOH) {
@@ -80,8 +85,12 @@ export async function triggerAlertsForMention(mention: MentionAlertInput) {
           "Mention mendesak dengan prioritas PERLU_PERHATIAN terdeteksi"
         ).catch(() => {});
       }
-    } catch {
-      // Abaikan jika terjadi konflik konkuren
+    } catch (error: unknown) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      console.warn(
+        `[triggerAlertsForMention] Gagal upsert alert jenis=${AlertType.PERLU_PERHATIAN}, topik=${alertTopik}: ${errorMessage}`
+      );
     }
   }
 
@@ -172,14 +181,19 @@ export async function triggerAlertsForMention(mention: MentionAlertInput) {
           update: {
             jumlah,
             ambangDipakai,
+            dibaca: false,
           },
         });
         alertsCreated.push(alert);
         if (alert.sumberInput !== InputSourceType.CONTOH) {
           void sendAlertEmail(alert, spike.reason).catch(() => {});
         }
-      } catch {
-        // Abaikan jika terjadi konflik konkuren
+      } catch (error: unknown) {
+        const errorMessage =
+          error instanceof Error ? error.message : String(error);
+        console.warn(
+          `[triggerAlertsForMention] Gagal upsert alert jenis=${AlertType.LONJAKAN}, topik=${mention.topik}: ${errorMessage}`
+        );
       }
     }
   }
