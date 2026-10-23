@@ -10,7 +10,8 @@
     "https://www.threads.com/*",
     "https://threads.com/*",
     "http://localhost:3000/*",
-    "http://127.0.0.1:3000/*"
+    "http://127.0.0.1:3000/*",
+    "https://threads-monitoring-btn.vercel.app/*"
   ],
   "action": {
     "default_popup": "popup.html",
