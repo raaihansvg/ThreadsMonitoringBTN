@@ -277,6 +277,7 @@ export function ModalInput() {
     setIsAnalyzing(true);
     setAnalysisFailed(false);
     setStep(2);
+    showToast("Mulai analisis menggunakan BTN AI", "info");
 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 17000);
@@ -319,6 +320,20 @@ export function ModalInput() {
           ringkasan: resolvedRingkasan,
           penyedia: analysis.penyedia || "keyword",
         });
+
+        if (data.fallbackDipakai || analysis.fallbackDipakai) {
+          setAnalysisFailed(true);
+          showToast(
+            "BTN AI tidak tersedia. Menggunakan analisis cadangan berbasis kata kunci.",
+            "info"
+          );
+        } else {
+          setAnalysisFailed(false);
+          showToast(
+            "Analisis BTN AI selesai. Silakan periksa atau koreksi hasil sebelum menyimpan.",
+            "success"
+          );
+        }
       } else {
         throw new Error(data?.error || "Gagal menganalisis postingan.");
       }
@@ -346,8 +361,8 @@ export function ModalInput() {
         penyedia: "klien_fallback",
       });
       showToast(
-        "Analisis otomatis gagal. Silakan sesuaikan secara manual.",
-        "error"
+        "BTN AI tidak tersedia. Menggunakan analisis cadangan berbasis kata kunci.",
+        "info"
       );
     } finally {
       setIsAnalyzing(false);
@@ -692,6 +707,7 @@ export function ModalInput() {
                   !postText.trim()
                 }
                 onClick={handleProceedToStep2}
+                title="Mulai analisis menggunakan BTN AI"
                 className="flex items-center gap-1.5 rounded-full bg-[#0055FF] px-5 py-2 text-xs font-bold text-white transition hover:bg-blue-700 disabled:opacity-40"
               >
                 <span>Lanjut ke Tinjau</span>
@@ -709,7 +725,8 @@ export function ModalInput() {
               <div className="flex items-center gap-2 rounded-2xl border border-amber-200 bg-amber-50 p-3 text-amber-900">
                 <AlertCircle className="h-4 w-4 shrink-0 text-amber-600" />
                 <span>
-                  Analisis otomatis gagal. Silakan sesuaikan secara manual.
+                  BTN AI tidak tersedia. Menggunakan analisis cadangan berbasis
+                  kata kunci. Silakan periksa atau sesuaikan secara manual.
                 </span>
               </div>
             )}
@@ -722,7 +739,9 @@ export function ModalInput() {
               >
                 <div className="flex items-center gap-2 font-medium text-slate-600">
                   <Loader2 className="h-4 w-4 animate-spin text-[#0055FF]" />
-                  <span>Menganalisis postingan...</span>
+                  <span>
+                    BTN AI sedang menganalisis postingan. Mohon tunggu...
+                  </span>
                 </div>
                 <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3">
                   <div className="h-10 rounded-xl bg-slate-200/70" />

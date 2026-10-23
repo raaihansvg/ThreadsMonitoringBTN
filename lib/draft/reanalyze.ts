@@ -34,7 +34,10 @@ export async function reanalyzeDraftClient({
     const data = await res.json().catch(() => ({}));
     if (res.ok && data.ok) {
       if (data.fallback) {
-        onToast?.("Analisis AI gagal, hasil lama dipertahankan.", "info");
+        onToast?.(
+          "BTN AI tidak tersedia. Menggunakan analisis cadangan berbasis kata kunci.",
+          "info"
+        );
       } else {
         onToast?.(data.message || "Analisis ulang selesai.", "success");
       }

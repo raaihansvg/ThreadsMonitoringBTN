@@ -186,7 +186,8 @@ export default function DraftPage() {
     if (d.dikoreksiManual) {
       const ok = await confirmDialog({
         title: "Ganti koreksi manual?",
-        message: "Koreksi manual kamu akan diganti hasil AI. Lanjut?",
+        message:
+          "Koreksi manual kamu akan diganti hasil analisis BTN AI. Lanjut?",
         confirmLabel: "Lanjut",
         cancelLabel: "Batal",
       });
@@ -448,7 +449,7 @@ export default function DraftPage() {
                           onClick={() => handleReanalyze(d)}
                           disabled={analyzingDraftId === d.id}
                           className="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold text-[#0055FF] transition hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-[#0055FF]/40 disabled:opacity-50"
-                          title="Analisis ulang dengan AI"
+                          title="Menganalisis ulang dengan BTN AI..."
                         >
                           <RefreshCw
                             className={`h-3.5 w-3.5 ${
@@ -507,11 +508,11 @@ export default function DraftPage() {
                   id="reanalyze-modal-title"
                   className="text-sm font-bold text-[#0A192F]"
                 >
-                  Menganalisis ulang dengan AI...
+                  Menganalisis ulang dengan BTN AI...
                 </h3>
                 <p className="mt-1 text-xs text-slate-500">
                   Sedang memproses teks postingan untuk memperbarui topik,
-                  sentimen, dan ringkasan.
+                  sentimen, dan ringkasan menggunakan BTN AI.
                 </p>
               </div>
               <div

@@ -96,4 +96,49 @@ describe("reanalyzeDraftClient Unit Tests (Perbaikan Timeout)", () => {
     expect(toastMessage).toBe("Analisis ulang selesai");
     expect(result.ok).toBe(true);
   });
+
+  it("menampilkan toast fallback saat server mengembalikan fallback: true", async () => {
+    let isLoading = false;
+    let toastMessage = "";
+    let toastType = "";
+    let successCalled = false;
+
+    const mockResponseData = {
+      ok: true,
+      fallback: true,
+      message: "Analisis AI gagal, hasil lama dipertahankan.",
+      result: { sentimen: "NETRAL" },
+    };
+
+    const fetchFn = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => mockResponseData,
+    });
+
+    const result = await reanalyzeDraftClient({
+      draftId: "draft-fallback-test-1",
+      fetchFn: fetchFn as unknown as typeof fetch,
+      onStart: () => {
+        isLoading = true;
+      },
+      onFinish: () => {
+        isLoading = false;
+      },
+      onToast: (msg, type) => {
+        toastMessage = msg;
+        toastType = type;
+      },
+      onSuccess: () => {
+        successCalled = true;
+      },
+    });
+
+    expect(isLoading).toBe(false);
+    expect(successCalled).toBe(true);
+    expect(toastType).toBe("info");
+    expect(toastMessage).toBe(
+      "BTN AI tidak tersedia. Menggunakan analisis cadangan berbasis kata kunci."
+    );
+    expect(result.ok).toBe(true);
+  });
 });
