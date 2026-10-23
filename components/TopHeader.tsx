@@ -152,14 +152,14 @@ export function TopHeader() {
           }`}
           aria-label={
             role === "petugas"
-              ? "Petugas Input · Keluar"
+              ? "Mode Petugas Aktif · Keluar"
               : "Masuk sebagai Petugas"
           }
         >
           {role === "petugas" ? (
             <>
               <Unlock className="h-3.5 w-3.5" strokeWidth={2} />
-              <span>Petugas Input · Keluar</span>
+              <span>Mode Petugas Aktif · Keluar</span>
             </>
           ) : (
             <>

@@ -5,7 +5,7 @@ import { useApp } from "@/context/AppContext";
 import { X, Lock, Eye, EyeOff } from "lucide-react";
 
 export function ModalToken() {
-  const { isTokenModalOpen, setTokenModalOpen, login } = useApp();
+  const { isTokenModalOpen, setTokenModalOpen, login, showToast } = useApp();
   const [tokenInput, setTokenInput] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
@@ -22,9 +22,14 @@ export function ModalToken() {
     setLoading(false);
 
     if (!result.ok) {
-      setErrorMsg(result.error || "Token tidak valid.");
+      if (result.error === "Gagal terhubung ke server.") {
+        setErrorMsg("Aplikasi tidak dapat dihubungi. Silakan coba lagi nanti.");
+      } else {
+        setErrorMsg("Kode akses tidak valid. Silakan coba lagi.");
+      }
     } else {
       setTokenInput("");
+      showToast("Mode Petugas Aktif", "success");
     }
   };
 
@@ -59,7 +64,7 @@ export function ModalToken() {
               Masuk sebagai Petugas
             </h3>
             <p className="text-xs font-medium text-slate-500">
-              Masukkan token akses untuk mengaktifkan kontrol tulis.
+              Masukkan kode akses untuk mengaktifkan kontrol tulis.
             </p>
           </div>
         </div>
@@ -70,7 +75,7 @@ export function ModalToken() {
               htmlFor="token-input"
               className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-700"
             >
-              Token Akses Petugas
+              Kode akses petugas
             </label>
             <div className="relative">
               <input
@@ -78,7 +83,8 @@ export function ModalToken() {
                 type={showPassword ? "text" : "password"}
                 value={tokenInput}
                 onChange={(e) => setTokenInput(e.target.value)}
-                placeholder="Masukkan token..."
+                placeholder="Masukkan kode akses..."
+                autoComplete="current-password"
                 required
                 className="w-full rounded-2xl border border-slate-200 bg-[#F4F7FB] px-4 py-3 pr-10 text-xs font-medium text-slate-800 placeholder-slate-400 focus:border-[#0055FF] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#0055FF]/20"
               />
@@ -87,7 +93,9 @@ export function ModalToken() {
                 onClick={() => setShowPassword(!showPassword)}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
                 aria-label={
-                  showPassword ? "Sembunyikan Token" : "Tampilkan Token"
+                  showPassword
+                    ? "Sembunyikan kode akses"
+                    : "Tampilkan kode akses"
                 }
               >
                 {showPassword ? (
@@ -97,6 +105,9 @@ export function ModalToken() {
                 )}
               </button>
             </div>
+            <p className="mt-1.5 text-xs text-slate-500">
+              Kode akses diberikan oleh administrator aplikasi.
+            </p>
           </div>
 
           {errorMsg && (
