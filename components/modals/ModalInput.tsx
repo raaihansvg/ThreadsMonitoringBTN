@@ -14,6 +14,7 @@ import {
   ArrowLeft,
   CheckCircle2,
   Sparkles,
+  Clock,
 } from "lucide-react";
 import { maskPii } from "@/lib/pii";
 
@@ -210,11 +211,22 @@ export function ModalInput() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [isInputModalOpen, handleRequestClose]);
 
+  // Cooldown pratinjau manual 5 detik setelah kegagalan
+  const [previewCooldown, setPreviewCooldown] = useState(0);
+
+  useEffect(() => {
+    if (previewCooldown <= 0) return;
+    const timer = setInterval(() => {
+      setPreviewCooldown((prev) => (prev > 1 ? prev - 1 : 0));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [previewCooldown]);
+
   if (!isInputModalOpen) return null;
 
   const handleFetchPreview = async () => {
     const trimmed = url.trim();
-    if (!trimmed || urlError) return;
+    if (!trimmed || urlError || previewCooldown > 0) return;
 
     setIsLoadingPreview(true);
     setPreviewError("");
@@ -226,7 +238,7 @@ export function ModalInput() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ url: trimmed }),
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (res.ok && data.ok && data.text) {
         setPostText(data.text);
         if (data.canonicalUrl) {
@@ -239,16 +251,19 @@ export function ModalInput() {
         setPreviewError("");
       } else {
         setPostText("");
-        setPreviewError(
+        const errMsg =
+          data.message ||
           data.error ||
-            "Teks tidak dapat diambil otomatis. Tempel teks postingan."
-        );
+          "Teks tidak dapat diambil otomatis. Silakan tempel teks postingan secara manual.";
+        setPreviewError(errMsg);
+        setPreviewCooldown(5);
       }
     } catch {
       setPostText("");
       setPreviewError(
-        "Kendala jaringan saat menghubungi server. Tempel teks postingan."
+        "Kendala jaringan saat menghubungi server. Silakan tempel teks postingan secara manual."
       );
+      setPreviewCooldown(5);
     } finally {
       setIsLoadingPreview(false);
     }
@@ -615,15 +630,29 @@ export function ModalInput() {
                 </label>
                 <button
                   type="button"
-                  disabled={!url.trim() || !!urlError || isLoadingPreview}
+                  disabled={
+                    !url.trim() ||
+                    !!urlError ||
+                    isLoadingPreview ||
+                    previewCooldown > 0
+                  }
                   onClick={handleFetchPreview}
                   className="flex items-center gap-1 rounded-full bg-[#EBF3FF] px-3 py-1 text-xs font-bold text-[#0055FF] transition hover:bg-blue-100 disabled:opacity-40"
-                  title="Ambil teks postingan dari tautan secara otomatis (FR-02)"
+                  title={
+                    previewCooldown > 0
+                      ? `Tunggu ${previewCooldown} detik sebelum mencoba lagi`
+                      : "Ambil teks postingan dari tautan secara otomatis (FR-02)"
+                  }
                 >
                   {isLoadingPreview ? (
                     <>
                       <Loader2 className="h-3 w-3 animate-spin" />
                       <span>Mengambil...</span>
+                    </>
+                  ) : previewCooldown > 0 ? (
+                    <>
+                      <Clock className="h-3 w-3" />
+                      <span>Tunggu {previewCooldown}s</span>
                     </>
                   ) : (
                     <>

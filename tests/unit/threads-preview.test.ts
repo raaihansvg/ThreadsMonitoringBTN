@@ -167,6 +167,113 @@ describe("FR-02: threadsPreview Unit Tests (Tahap 3A)", () => {
       expect(res.ok).toBe(true);
       expect(res.text).toBe("Teks valid");
     });
+
+    it("mengembalikan NOT_FOUND saat menerima status HTTP 404 dari Threads", async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: false,
+        status: 404,
+        headers: new Headers(),
+        text: () => Promise.resolve("Not Found"),
+      } as any);
+
+      const res = await fetchThreadsPreview(
+        "https://www.threads.net/@user/post/404404"
+      );
+      expect(res.ok).toBe(false);
+      expect(res.statusCode).toBe(404);
+      expect(res.errorCode).toBe("NOT_FOUND");
+      expect(res.error).toContain("404");
+    });
+
+    it("mengembalikan TIMEOUT saat fetch melebihi batas waktu (AbortError)", async () => {
+      const abortError = new Error("The operation was aborted");
+      abortError.name = "AbortError";
+      global.fetch = vi.fn().mockRejectedValue(abortError);
+
+      const res = await fetchThreadsPreview(
+        "https://www.threads.net/@user/post/timeout-post"
+      );
+      expect(res.ok).toBe(false);
+      expect(res.errorCode).toBe("TIMEOUT");
+      expect(res.error).toContain("Timeout");
+    });
+
+    it("mengembalikan REDIRECT_LOOP saat redirect lebih dari 3 hop", async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        status: 302,
+        headers: new Headers({
+          location: "https://www.threads.net/@user/post/hop",
+        }),
+      } as any);
+
+      const res = await fetchThreadsPreview(
+        "https://www.threads.net/@user/post/infinite-loop"
+      );
+      expect(res.ok).toBe(false);
+      expect(res.errorCode).toBe("REDIRECT_LOOP");
+      expect(res.error).toContain("Melebihi batas maksimal redirect");
+    });
+
+    it("mengembalikan REDIRECT_LOOP saat menerima status redirect tanpa header Location", async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        status: 301,
+        headers: new Headers(),
+      } as any);
+
+      const res = await fetchThreadsPreview(
+        "https://www.threads.net/@user/post/no-location"
+      );
+      expect(res.ok).toBe(false);
+      expect(res.errorCode).toBe("REDIRECT_LOOP");
+      expect(res.error).toContain("tanpa header Location");
+    });
+
+    it("mengembalikan EMPTY_PREVIEW saat tag og:description tidak ditemukan pada HTML", async () => {
+      const emptyMetaHtml = `<html><head><title>Threads</title></head><body>No meta</body></html>`;
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        text: () => Promise.resolve(emptyMetaHtml),
+        headers: new Headers(),
+      } as any);
+
+      const res = await fetchThreadsPreview(
+        "https://www.threads.net/@user/post/no-meta"
+      );
+      expect(res.ok).toBe(false);
+      expect(res.errorCode).toBe("EMPTY_PREVIEW");
+      expect(res.error).toContain("og:description tidak ditemukan");
+    });
+
+    it("mengembalikan EMPTY_PREVIEW saat isi tag og:description hanya berupa spasi", async () => {
+      const blankOgHtml = `<meta property="og:description" content="   " />`;
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        text: () => Promise.resolve(blankOgHtml),
+        headers: new Headers(),
+      } as any);
+
+      const res = await fetchThreadsPreview(
+        "https://www.threads.net/@user/post/blank-meta"
+      );
+      expect(res.ok).toBe(false);
+      expect(res.errorCode).toBe("EMPTY_PREVIEW");
+      expect(res.error).toContain("og:description kosong");
+    });
+
+    it("mengembalikan NETWORK_ERROR saat terjadi kendala jaringan/koneksi", async () => {
+      global.fetch = vi
+        .fn()
+        .mockRejectedValue(new Error("fetch failed: ECONNREFUSED"));
+
+      const res = await fetchThreadsPreview(
+        "https://www.threads.net/@user/post/net-err"
+      );
+      expect(res.ok).toBe(false);
+      expect(res.errorCode).toBe("NETWORK_ERROR");
+      expect(res.error).toContain("ECONNREFUSED");
+    });
   });
 
   describe("Circuit Breaker & Rate Limiter (previewLimiter)", () => {
