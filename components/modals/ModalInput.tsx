@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useApp } from "@/context/AppContext";
 import {
@@ -29,6 +29,14 @@ export function ModalInput() {
     showToast,
     confirmDialog,
   } = useApp();
+
+  // Lifecycle & Abort Refs
+  const previewAbortRef = useRef<AbortController | null>(null);
+  const analyzeAbortRef = useRef<AbortController | null>(null);
+  const previewTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const analyzeTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const previewRequestIdRef = useRef<number>(0);
+  const analyzeRequestIdRef = useRef<number>(0);
 
   // Wizard Step: 1 = Tempel Tautan & Teks, 2 = Tinjau & Simpan
   const [step, setStep] = useState<1 | 2>(1);
@@ -100,20 +108,126 @@ export function ModalInput() {
       .catch(() => {});
   }, []);
 
-  // Set prefilled URL when opened
+  /**
+   * Fungsi terpusat untuk mereset seluruh state form,
+   * membatalkan request yang sedang aktif, dan menaikkan request ID token.
+   */
+  const resetForm = useCallback(() => {
+    if (previewAbortRef.current) {
+      previewAbortRef.current.abort();
+      previewAbortRef.current = null;
+    }
+    if (analyzeAbortRef.current) {
+      analyzeAbortRef.current.abort();
+      analyzeAbortRef.current = null;
+    }
+    if (previewTimerRef.current) {
+      clearTimeout(previewTimerRef.current);
+      previewTimerRef.current = null;
+    }
+    if (analyzeTimerRef.current) {
+      clearTimeout(analyzeTimerRef.current);
+      analyzeTimerRef.current = null;
+    }
+
+    previewRequestIdRef.current += 1;
+    analyzeRequestIdRef.current += 1;
+
+    setUrl("");
+    setPostText("");
+    setTopik("Lainnya");
+    setSentimen("NETRAL");
+    setPrioritas("RUTIN");
+    setHeadline("");
+    setRingkasan("");
+    setKataKunciInput("");
+    setCanonicalUrl("");
+    setIsTruncated(false);
+    setIsLoadingPreview(false);
+    setPreviewError("");
+    setUrlError("");
+    setDuplicateEntry(null);
+    setDetectedPii([]);
+    setIsAnalyzing(false);
+    setAnalysisFailed(false);
+    setIsSubmitting(false);
+    setSubmitDuplicate(null);
+    setSubmitError("");
+    setStep(1);
+    setInitialAnalysis(null);
+  }, []);
+
+  // Reset sesi saat modal dibuka, atau batalkan request saat modal ditutup
   useEffect(() => {
     if (isInputModalOpen) {
+      resetForm();
       if (prefilledUrl) {
         setUrl(prefilledUrl);
       }
-      setStep(1);
-      setDuplicateEntry(null);
-      setSubmitDuplicate(null);
-      setSubmitError("");
-      setUrlError("");
-      setInitialAnalysis(null);
+    } else {
+      if (previewAbortRef.current) {
+        previewAbortRef.current.abort();
+        previewAbortRef.current = null;
+      }
+      if (analyzeAbortRef.current) {
+        analyzeAbortRef.current.abort();
+        analyzeAbortRef.current = null;
+      }
+      if (previewTimerRef.current) {
+        clearTimeout(previewTimerRef.current);
+        previewTimerRef.current = null;
+      }
+      if (analyzeTimerRef.current) {
+        clearTimeout(analyzeTimerRef.current);
+        analyzeTimerRef.current = null;
+      }
     }
-  }, [isInputModalOpen, prefilledUrl]);
+  }, [isInputModalOpen, prefilledUrl, resetForm]);
+
+  /**
+   * Penanganan perubahan URL:
+   * Batalkan request aktif, hapus teks preview dan hasil analisis lama.
+   */
+  const handleUrlChange = (newUrl: string) => {
+    setUrl(newUrl);
+
+    if (previewAbortRef.current) {
+      previewAbortRef.current.abort();
+      previewAbortRef.current = null;
+    }
+    if (analyzeAbortRef.current) {
+      analyzeAbortRef.current.abort();
+      analyzeAbortRef.current = null;
+    }
+    if (previewTimerRef.current) {
+      clearTimeout(previewTimerRef.current);
+      previewTimerRef.current = null;
+    }
+    if (analyzeTimerRef.current) {
+      clearTimeout(analyzeTimerRef.current);
+      analyzeTimerRef.current = null;
+    }
+
+    previewRequestIdRef.current += 1;
+    analyzeRequestIdRef.current += 1;
+
+    setPostText("");
+    setCanonicalUrl("");
+    setIsTruncated(false);
+    setIsLoadingPreview(false);
+    setPreviewError("");
+    setTopik("Lainnya");
+    setSentimen("NETRAL");
+    setPrioritas("RUTIN");
+    setHeadline("");
+    setRingkasan("");
+    setKataKunciInput("");
+    setInitialAnalysis(null);
+    setIsAnalyzing(false);
+    setAnalysisFailed(false);
+    setSubmitDuplicate(null);
+    setSubmitError("");
+  };
 
   // Validate and detect duplicate URL
   const checkUrlDuplicate = useCallback(async (testUrl: string) => {
@@ -193,12 +307,14 @@ export function ModalInput() {
         variant: "danger",
       });
       if (ok) {
+        resetForm();
         setInputModalOpen(false);
       }
     } else {
+      resetForm();
       setInputModalOpen(false);
     }
-  }, [url, postText, confirmDialog, setInputModalOpen]);
+  }, [url, postText, confirmDialog, setInputModalOpen, resetForm]);
 
   // Keyboard Escape listener
   useEffect(() => {
@@ -228,6 +344,17 @@ export function ModalInput() {
     const trimmed = url.trim();
     if (!trimmed || urlError || previewCooldown > 0) return;
 
+    if (previewAbortRef.current) {
+      previewAbortRef.current.abort();
+    }
+    if (previewTimerRef.current) {
+      clearTimeout(previewTimerRef.current);
+    }
+
+    const currentReqId = ++previewRequestIdRef.current;
+    const controller = new AbortController();
+    previewAbortRef.current = controller;
+
     setIsLoadingPreview(true);
     setPreviewError("");
     setIsTruncated(false);
@@ -237,8 +364,18 @@ export function ModalInput() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ url: trimmed }),
+        signal: controller.signal,
       });
+
+      if (previewRequestIdRef.current !== currentReqId) {
+        return;
+      }
+
       const data = await res.json().catch(() => ({}));
+      if (previewRequestIdRef.current !== currentReqId) {
+        return;
+      }
+
       if (res.ok && data.ok && data.text) {
         setPostText(data.text);
         if (data.canonicalUrl) {
@@ -258,14 +395,23 @@ export function ModalInput() {
         setPreviewError(errMsg);
         setPreviewCooldown(5);
       }
-    } catch {
+    } catch (err: unknown) {
+      if (err instanceof Error && err.name === "AbortError") {
+        return;
+      }
+      if (previewRequestIdRef.current !== currentReqId) {
+        return;
+      }
       setPostText("");
       setPreviewError(
         "Kendala jaringan saat menghubungi server. Silakan tempel teks postingan secara manual."
       );
       setPreviewCooldown(5);
     } finally {
-      setIsLoadingPreview(false);
+      if (previewRequestIdRef.current === currentReqId) {
+        setIsLoadingPreview(false);
+        previewAbortRef.current = null;
+      }
     }
   };
 
@@ -288,14 +434,26 @@ export function ModalInput() {
     const { maskedText: masked } = maskPii(postText);
     setPostText(masked);
 
+    if (analyzeAbortRef.current) {
+      analyzeAbortRef.current.abort();
+    }
+    if (analyzeTimerRef.current) {
+      clearTimeout(analyzeTimerRef.current);
+    }
+
+    const currentReqId = ++analyzeRequestIdRef.current;
+    const controller = new AbortController();
+    analyzeAbortRef.current = controller;
+
+    analyzeTimerRef.current = setTimeout(() => {
+      controller.abort();
+    }, 17000);
+
     // Jalankan analisis via POST /api/analyze (NFR-04, AC-18)
     setIsAnalyzing(true);
     setAnalysisFailed(false);
     setStep(2);
     showToast("Mulai analisis menggunakan BTN AI", "info");
-
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 17000);
 
     try {
       const res = await fetch("/api/analyze", {
@@ -304,8 +462,21 @@ export function ModalInput() {
         body: JSON.stringify({ text: masked }),
         signal: controller.signal,
       });
-      clearTimeout(timeoutId);
+
+      if (analyzeTimerRef.current) {
+        clearTimeout(analyzeTimerRef.current);
+        analyzeTimerRef.current = null;
+      }
+
+      if (analyzeRequestIdRef.current !== currentReqId) {
+        return;
+      }
+
       const data = await res.json();
+      if (analyzeRequestIdRef.current !== currentReqId) {
+        return;
+      }
+
       if (res.ok && data.ok) {
         const analysis = data.data || data;
         const resolvedTopic = analysis.topik || "Lainnya";
@@ -321,12 +492,11 @@ export function ModalInput() {
         setSentimen(resolvedSentiment);
         setPrioritas(resolvedPriority);
         setKataKunciInput(resolvedKeywords);
-        if (!headline) {
-          setHeadline(resolvedHeadline);
-        }
-        if (!ringkasan) {
-          setRingkasan(resolvedRingkasan);
-        }
+
+        // Selalu perbarui headline dan ringkasan dari analisis terbaru
+        setHeadline(resolvedHeadline);
+        setRingkasan(resolvedRingkasan);
+
         setInitialAnalysis({
           topik: resolvedTopic,
           sentimen: resolvedSentiment,
@@ -352,8 +522,20 @@ export function ModalInput() {
       } else {
         throw new Error(data?.error || "Gagal menganalisis postingan.");
       }
-    } catch {
-      clearTimeout(timeoutId);
+    } catch (err: unknown) {
+      if (analyzeTimerRef.current) {
+        clearTimeout(analyzeTimerRef.current);
+        analyzeTimerRef.current = null;
+      }
+
+      if (err instanceof Error && err.name === "AbortError") {
+        return;
+      }
+
+      if (analyzeRequestIdRef.current !== currentReqId) {
+        return;
+      }
+
       // Fallback aman di klien bila server/timeout/rate-limit gagal
       setAnalysisFailed(true);
       const firstLine = masked.split("\n")[0] || masked;
@@ -365,8 +547,8 @@ export function ModalInput() {
       setSentimen("NETRAL");
       setPrioritas("RUTIN");
       setKataKunciInput("");
-      if (!headline) setHeadline(fallbackHeadline);
-      if (!ringkasan) setRingkasan(fallbackSummary);
+      setHeadline(fallbackHeadline);
+      setRingkasan(fallbackSummary);
       setInitialAnalysis({
         topik: "Lainnya",
         sentimen: "NETRAL",
@@ -380,7 +562,10 @@ export function ModalInput() {
         "info"
       );
     } finally {
-      setIsAnalyzing(false);
+      if (analyzeRequestIdRef.current === currentReqId) {
+        setIsAnalyzing(false);
+        analyzeAbortRef.current = null;
+      }
     }
   };
 
@@ -442,16 +627,10 @@ export function ModalInput() {
       if (!res.ok) {
         setSubmitError(data.error || "Gagal menyimpan mention.");
       } else {
+        resetForm();
         setInputModalOpen(false);
         showToast("Mention berhasil dicatat.");
         triggerRefresh();
-        // Reset formulir
-        setUrl("");
-        setPostText("");
-        setHeadline("");
-        setRingkasan("");
-        setCanonicalUrl("");
-        setStep(1);
       }
     } catch {
       setSubmitError("Terjadi kendala jaringan saat menyimpan mention.");
@@ -515,8 +694,9 @@ export function ModalInput() {
             <button
               type="button"
               onClick={() => {
-                setInputModalOpen(false);
                 const targetSearch = submitDuplicate.url || url.trim();
+                resetForm();
+                setInputModalOpen(false);
                 router.push(
                   `/mention?search=${encodeURIComponent(targetSearch)}`
                 );
@@ -573,7 +753,7 @@ export function ModalInput() {
                 id="input-url"
                 type="url"
                 value={url}
-                onChange={(e) => setUrl(e.target.value)}
+                onChange={(e) => handleUrlChange(e.target.value)}
                 placeholder="https://www.threads.net/@user/post/..."
                 required
                 className={`mt-1.5 w-full rounded-2xl border bg-[#F4F7FB] p-3 font-mono text-xs text-slate-800 placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 ${
@@ -605,9 +785,10 @@ export function ModalInput() {
                   <button
                     type="button"
                     onClick={() => {
-                      setInputModalOpen(false);
                       const targetUrl = url.split("?")[0];
                       const existingId = duplicateEntry.id;
+                      resetForm();
+                      setInputModalOpen(false);
                       window.location.href = `/mention?id=${encodeURIComponent(existingId)}&search=${encodeURIComponent(targetUrl)}`;
                     }}
                     className="flex items-center gap-1 rounded-full bg-[#0055FF] px-3 py-1 text-xs font-bold text-white hover:bg-blue-700"
@@ -722,7 +903,10 @@ export function ModalInput() {
             <div className="flex items-center justify-end gap-2 border-t border-slate-100 pt-3">
               <button
                 type="button"
-                onClick={() => setInputModalOpen(false)}
+                onClick={() => {
+                  resetForm();
+                  setInputModalOpen(false);
+                }}
                 className="rounded-full px-4 py-2 text-xs font-semibold text-slate-500 hover:bg-slate-100"
               >
                 Batal
@@ -928,14 +1112,23 @@ export function ModalInput() {
 
             {/* Aksi Langkah 2 */}
             <div className="flex items-center justify-between border-t border-slate-100 pt-3">
-              <button
-                type="button"
-                onClick={() => setStep(1)}
-                className="flex items-center gap-1 rounded-full px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100"
-              >
-                <ArrowLeft className="h-4 w-4" />
-                <span>Kembali</span>
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setStep(1)}
+                  className="flex items-center gap-1 rounded-full px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100"
+                >
+                  <ArrowLeft className="h-4 w-4" />
+                  <span>Kembali</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleRequestClose}
+                  className="rounded-full px-4 py-2 text-xs font-semibold text-slate-500 hover:bg-slate-100"
+                >
+                  Batal
+                </button>
+              </div>
 
               <button
                 type="submit"
