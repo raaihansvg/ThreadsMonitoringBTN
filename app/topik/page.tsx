@@ -385,14 +385,15 @@ export default function TopicsConfigPage() {
               Ambang Deteksi Alert
             </h3>
             <p className="text-xs text-slate-500">
-              Sistem akan memicu peringatan otomatis saat volume melebihi angka
-              berikut:
+              Alert Perlu Perhatian dibuat ketika satu mention dianggap berisiko
+              oleh BTN AI. Alert Lonjakan dibuat ketika jumlah mention atau
+              mention negatif meningkat melewati batas yang ditentukan.
             </p>
 
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
                 <label className="mb-1 block text-xs font-bold text-slate-700">
-                  Ambang Lonjakan Mention (per hari)
+                  Jumlah mention untuk memicu alert
                 </label>
                 <input
                   type="number"
@@ -405,11 +406,15 @@ export default function TopicsConfigPage() {
                   disabled={role !== "petugas"}
                   className="w-full rounded-xl border border-slate-200 bg-[#F4F7FB] px-3 py-2 text-xs font-bold text-slate-800 focus:bg-white focus:outline-none disabled:opacity-60"
                 />
+                <p className="mt-1 text-xs text-slate-500">
+                  Jumlah mention minimum dalam satu hari sebelum alert volume
+                  dibuat.
+                </p>
               </div>
 
               <div>
                 <label className="mb-1 block text-xs font-bold text-slate-700">
-                  Pengali Volume Lonjakan (x baseline)
+                  Kenaikan dibanding jumlah normal
                 </label>
                 <input
                   type="number"
@@ -423,11 +428,16 @@ export default function TopicsConfigPage() {
                   disabled={role !== "petugas"}
                   className="w-full rounded-xl border border-slate-200 bg-[#F4F7FB] px-3 py-2 text-xs font-bold text-slate-800 focus:bg-white focus:outline-none disabled:opacity-60"
                 />
+                <p className="mt-1 text-xs text-slate-500">
+                  Alert muncul jika jumlah mention mencapai jumlah normal
+                  dikalikan nilai ini. Jumlah normal dihitung dari rata-rata
+                  mention 7 hari sebelumnya.
+                </p>
               </div>
 
               <div>
                 <label className="mb-1 block text-xs font-bold text-slate-700">
-                  Ambang Mention Negatif (per hari)
+                  Jumlah mention negatif untuk memicu alert
                 </label>
                 <input
                   type="number"
@@ -440,11 +450,15 @@ export default function TopicsConfigPage() {
                   disabled={role !== "petugas"}
                   className="w-full rounded-xl border border-slate-200 bg-[#F4F7FB] px-3 py-2 text-xs font-bold text-slate-800 focus:bg-white focus:outline-none disabled:opacity-60"
                 />
+                <p className="mt-1 text-xs text-slate-500">
+                  Jumlah mention negatif minimum dalam satu hari sebelum alert
+                  dibuat.
+                </p>
               </div>
 
               <div>
                 <label className="mb-1 block text-xs font-bold text-slate-700">
-                  Ambang Persentase Negatif (%)
+                  Persentase mention negatif untuk memicu alert
                 </label>
                 <input
                   type="number"
@@ -457,6 +471,10 @@ export default function TopicsConfigPage() {
                   disabled={role !== "petugas"}
                   className="w-full rounded-xl border border-slate-200 bg-[#F4F7FB] px-3 py-2 text-xs font-bold text-slate-800 focus:bg-white focus:outline-none disabled:opacity-60"
                 />
+                <p className="mt-1 text-xs text-slate-500">
+                  Persentase mention negatif dari seluruh mention dalam satu
+                  hari.
+                </p>
               </div>
             </div>
 
