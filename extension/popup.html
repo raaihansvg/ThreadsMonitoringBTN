@@ -9,40 +9,107 @@
         font-family:
           -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
         margin: 0;
-        padding: 14px;
+        padding: 12px;
         background-color: #f4f7fb;
         color: #0a192f;
       }
       .header {
         display: flex;
         align-items: center;
-        gap: 8px;
+        justify-content: space-between;
         border-bottom: 1px solid #e2e8f0;
         padding-bottom: 8px;
-        margin-bottom: 12px;
+        margin-bottom: 10px;
+      }
+      .header-title {
+        display: flex;
+        align-items: center;
+        gap: 6px;
       }
       .badge {
         font-size: 10px;
-        font-weight: bold;
+        font-weight: 700;
         background-color: #ebf3ff;
         color: #0055ff;
-        padding: 2px 8px;
+        padding: 2px 7px;
         border-radius: 12px;
       }
       h3 {
         margin: 0;
         font-size: 13px;
         font-weight: 700;
+        color: #0a192f;
+      }
+      .card {
+        background: #ffffff;
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        padding: 10px 12px;
+        margin-bottom: 10px;
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+      }
+      .card-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 8px;
+      }
+      .card-title {
+        margin: 0;
+        font-size: 11px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        color: #0a192f;
+      }
+      .status-badge {
+        font-size: 10px;
+        font-weight: 600;
+        padding: 2px 8px;
+        border-radius: 10px;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+      }
+      .status-badge::before {
+        content: "";
+        display: inline-block;
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+      }
+      .badge-connected {
+        background-color: #d1fae5;
+        color: #047857;
+      }
+      .badge-connected::before {
+        background-color: #10b981;
+      }
+      .badge-disconnected {
+        background-color: #f1f5f9;
+        color: #64748b;
+      }
+      .badge-disconnected::before {
+        background-color: #94a3b8;
       }
       .field {
-        margin-bottom: 10px;
+        margin-bottom: 8px;
+      }
+      .field:last-child {
+        margin-bottom: 0;
       }
       label {
         display: block;
         font-size: 11px;
         font-weight: 600;
-        color: #5a6a7e;
+        color: #475569;
         margin-bottom: 3px;
+      }
+      .help-text {
+        font-size: 10px;
+        color: #64748b;
+        margin: 3px 0 6px 0;
+        line-height: 1.3;
       }
       input,
       textarea {
@@ -53,8 +120,22 @@
         border-radius: 8px;
         font-size: 11px;
         background: #ffffff;
+        color: #0a192f;
       }
-      button {
+      input:focus,
+      textarea:focus {
+        outline: none;
+        border-color: #0055ff;
+        box-shadow: 0 0 0 2px rgba(0, 85, 255, 0.15);
+      }
+      input[readonly] {
+        background-color: #f8fafc;
+        color: #64748b;
+      }
+      textarea {
+        resize: vertical;
+      }
+      .btn-primary {
         width: 100%;
         padding: 8px;
         background: #0055ff;
@@ -62,67 +143,137 @@
         border: none;
         border-radius: 20px;
         font-size: 12px;
-        font-weight: bold;
+        font-weight: 700;
         cursor: pointer;
+        transition: background-color 0.15s ease;
+      }
+      .btn-primary:hover:not(:disabled) {
+        background-color: #0043cc;
+      }
+      .btn-secondary {
+        width: 100%;
+        padding: 6px 8px;
+        background: #0a192f;
+        color: white;
+        border: none;
+        border-radius: 20px;
+        font-size: 11px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: background-color 0.15s ease;
+        margin-top: 4px;
+      }
+      .btn-secondary:hover:not(:disabled) {
+        background-color: #1e293b;
       }
       button:disabled {
-        background: #94a3b8;
+        opacity: 0.5;
         cursor: not-allowed;
       }
       .status {
-        margin-top: 8px;
+        margin-top: 6px;
         font-size: 11px;
+        line-height: 1.4;
         text-align: center;
+        border-radius: 6px;
+        padding: 4px 6px;
+      }
+      .status:empty {
+        display: none;
       }
       .error {
         color: #c10010;
+        background-color: #fff1f2;
+        border: 1px solid #ffe4e6;
       }
       .success {
         color: #047857;
+        background-color: #ecfdf5;
+        border: 1px solid #d1fae5;
+      }
+      .info {
+        color: #0369a1;
+        background-color: #f0f9ff;
+        border: 1px solid #e0f2fe;
       }
     </style>
   </head>
   <body>
     <div class="header">
-      <span class="badge">FR-09</span>
-      <h3>Kirim ke BTN Monitoring</h3>
+      <div class="header-title">
+        <span class="badge">BTN AI</span>
+        <h3>Kirim ke BTN Monitoring</h3>
+      </div>
     </div>
 
-    <div class="field">
-      <label for="serverUrl">Alamat Server Aplikasi:</label>
-      <input
-        type="text"
-        id="serverUrl"
-        placeholder="http://localhost:3000"
-        value="http://localhost:3000"
-      />
+    <!-- Bagian 1: Pengaturan -->
+    <div class="card">
+      <div class="card-header">
+        <h4 class="card-title">Pengaturan</h4>
+        <span id="connBadge" class="status-badge badge-disconnected"
+          >Belum terhubung</span
+        >
+      </div>
+
+      <div class="field">
+        <label for="serverUrl">Alamat aplikasi</label>
+        <input
+          type="text"
+          id="serverUrl"
+          placeholder="http://localhost:3000"
+          value="http://localhost:3000"
+        />
+        <p class="help-text">
+          Gunakan alamat ini saat aplikasi berjalan di komputer sendiri.
+        </p>
+      </div>
+
+      <div class="field">
+        <label for="token">Kode koneksi</label>
+        <input
+          type="password"
+          id="token"
+          placeholder="Masukkan kode koneksi..."
+          autocomplete="current-password"
+        />
+      </div>
+
+      <button type="button" id="btnSaveConfig" class="btn-secondary">
+        Simpan Pengaturan
+      </button>
+      <div id="configMsg" class="status"></div>
     </div>
 
-    <div class="field">
-      <label for="token">Token Ekstensi (EXTENSION_TOKEN):</label>
-      <input
-        type="password"
-        id="token"
-        placeholder="Masukkan EXTENSION_TOKEN..."
-      />
-    </div>
+    <!-- Bagian 2: Pengiriman -->
+    <div class="card">
+      <div class="card-header">
+        <h4 class="card-title">Pengiriman</h4>
+      </div>
 
-    <div class="field">
-      <label for="postUrl">Tautan Threads Terdeteksi:</label>
-      <input type="text" id="postUrl" readonly />
-    </div>
+      <div class="field">
+        <label for="postUrl">Tautan Threads Terdeteksi</label>
+        <input
+          type="text"
+          id="postUrl"
+          readonly
+          placeholder="Menunggu tautan Threads..."
+        />
+      </div>
 
-    <div class="field">
-      <label for="postText">Teks Postingan:</label>
-      <textarea
-        id="postText"
-        rows="3"
-        placeholder="Mengambil teks dari halaman..."
-      ></textarea>
-    </div>
+      <div class="field">
+        <label for="postText">Teks Postingan</label>
+        <textarea
+          id="postText"
+          rows="3"
+          placeholder="Mengambil teks dari halaman..."
+        ></textarea>
+      </div>
 
-    <button id="btnSend">Kirim sebagai Draf</button>
-    <div id="statusMsg" class="status"></div>
+      <button type="button" id="btnSend" class="btn-primary">
+        Kirim sebagai Draf
+      </button>
+      <div id="statusMsg" class="status"></div>
+    </div>
 
     <script src="popup.js"></script>
   </body>
