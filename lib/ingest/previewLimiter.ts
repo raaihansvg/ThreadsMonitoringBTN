@@ -157,6 +157,7 @@ export async function resetCircuitBreaker(): Promise<void> {
 export async function checkPreviewRateLimit(sessionId: string): Promise<{
   allowed: boolean;
   error?: string;
+  retryAfterSeconds?: number;
 }> {
   const now = Date.now();
   const prisma = await getPrismaClient();
@@ -177,6 +178,7 @@ export async function checkPreviewRateLimit(sessionId: string): Promise<{
           return {
             allowed: false,
             error: `Batas frekuensi pratinjau sesi tercapai (maksimal 10/menit). Tunggu ${waitSec} detik lagi.`,
+            retryAfterSeconds: waitSec,
           };
         }
       }
@@ -191,10 +193,12 @@ export async function checkPreviewRateLimit(sessionId: string): Promise<{
         );
         if (recentGlobal.length >= MAX_GLOBAL_PER_HOUR) {
           const oldest = recentGlobal[0].getTime();
-          const waitMin = Math.ceil((oldest + GLOBAL_WINDOW_MS - now) / 60000);
+          const waitSec = Math.ceil((oldest + GLOBAL_WINDOW_MS - now) / 1000);
+          const waitMin = Math.ceil(waitSec / 60);
           return {
             allowed: false,
             error: `Batas frekuensi pratinjau global tercapai (maksimal 60/jam). Tunggu sekitar ${waitMin} menit lagi.`,
+            retryAfterSeconds: waitSec,
           };
         }
       }
@@ -214,16 +218,19 @@ export async function checkPreviewRateLimit(sessionId: string): Promise<{
     return {
       allowed: false,
       error: `Batas frekuensi pratinjau sesi tercapai (maksimal 10/menit). Tunggu ${waitSec} detik lagi.`,
+      retryAfterSeconds: waitSec,
     };
   }
 
   globalAttempts = globalAttempts.filter((ts) => now - ts < GLOBAL_WINDOW_MS);
   if (globalAttempts.length >= MAX_GLOBAL_PER_HOUR) {
     const oldest = globalAttempts[0];
-    const waitMin = Math.ceil((oldest + GLOBAL_WINDOW_MS - now) / 60000);
+    const waitSec = Math.ceil((oldest + GLOBAL_WINDOW_MS - now) / 1000);
+    const waitMin = Math.ceil(waitSec / 60);
     return {
       allowed: false,
       error: `Batas frekuensi pratinjau global tercapai (maksimal 60/jam). Tunggu sekitar ${waitMin} menit lagi.`,
+      retryAfterSeconds: waitSec,
     };
   }
 

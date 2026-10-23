@@ -15,6 +15,21 @@
 
 import { canonicalizeThreadsUrl } from "../url";
 
+export type PreviewErrorCode =
+  | "INVALID_URL"
+  | "DISABLED"
+  | "RATE_LIMITED"
+  | "CIRCUIT_BREAKER"
+  | "TIMEOUT"
+  | "NOT_FOUND"
+  | "LOGIN_WALL"
+  | "REDIRECT_REJECTED"
+  | "REDIRECT_LOOP"
+  | "EMPTY_PREVIEW"
+  | "NETWORK_ERROR"
+  | "UPSTREAM_ERROR"
+  | "INTERNAL_ERROR";
+
 export interface ThreadsPreviewResult {
   ok: boolean;
   text: string;
@@ -22,6 +37,7 @@ export interface ThreadsPreviewResult {
   isTruncated: boolean;
   statusCode?: number;
   error?: string;
+  errorCode?: PreviewErrorCode;
 }
 
 const ALLOWED_HOSTS = [
@@ -97,7 +113,7 @@ function extractOgDescription(html: string): string | null {
     );
 
   if (ogDescMatch && ogDescMatch[1] !== undefined) {
-    return ogDescMatch[1].trim();
+    return ogDescMatch[1];
   }
   return null;
 }
@@ -119,6 +135,7 @@ export async function fetchThreadsPreview(
         canonicalUrl: currentUrl,
         isTruncated: false,
         error: `Host URL tidak diizinkan: ${currentUrl}`,
+        errorCode: "REDIRECT_REJECTED",
       };
     }
 
@@ -147,6 +164,7 @@ export async function fetchThreadsPreview(
             isTruncated: false,
             statusCode: res.status,
             error: "Melebihi batas maksimal redirect (3).",
+            errorCode: "REDIRECT_LOOP",
           };
         }
 
@@ -159,6 +177,7 @@ export async function fetchThreadsPreview(
             isTruncated: false,
             statusCode: res.status,
             error: "Redirect status tanpa header Location.",
+            errorCode: "REDIRECT_LOOP",
           };
         }
 
@@ -172,6 +191,7 @@ export async function fetchThreadsPreview(
             canonicalUrl: resolvedUrl,
             isTruncated: false,
             error: `Target redirect ditolak (bukan host Threads resmi): ${resolvedUrl}`,
+            errorCode: "REDIRECT_REJECTED",
           };
         }
 
@@ -189,6 +209,21 @@ export async function fetchThreadsPreview(
           isTruncated: false,
           statusCode: res.status,
           error: `Menerima status HTTP ${res.status} dari Threads.`,
+          errorCode: "CIRCUIT_BREAKER",
+        };
+      }
+
+      // Kode status tidak ditemukan / tidak dapat diakses: 404 (Not Found)
+      if (res.status === 404) {
+        return {
+          ok: false,
+          text: "",
+          canonicalUrl: canonicalizeThreadsUrl(currentUrl),
+          isTruncated: false,
+          statusCode: 404,
+          error:
+            "Postingan tidak ditemukan atau tidak dapat diakses (HTTP 404).",
+          errorCode: "NOT_FOUND",
         };
       }
 
@@ -200,6 +235,7 @@ export async function fetchThreadsPreview(
           isTruncated: false,
           statusCode: res.status,
           error: `Permintaan gagal dengan status HTTP ${res.status}.`,
+          errorCode: "UPSTREAM_ERROR",
         };
       }
 
@@ -229,7 +265,7 @@ export async function fetchThreadsPreview(
 
       // Ekstraksi HANYA tag og:description
       const rawOgDesc = extractOgDescription(html);
-      if (!rawOgDesc) {
+      if (rawOgDesc === null) {
         return {
           ok: false,
           text: "",
@@ -237,11 +273,23 @@ export async function fetchThreadsPreview(
           isTruncated: false,
           statusCode: res.status,
           error: "Tag og:description tidak ditemukan pada halaman.",
+          errorCode: "EMPTY_PREVIEW",
         };
       }
 
       // Decode seluruh entitas HTML
       const decodedText = decodeHtmlEntities(rawOgDesc).trim();
+      if (!decodedText) {
+        return {
+          ok: false,
+          text: "",
+          canonicalUrl: canonicalizeThreadsUrl(currentUrl),
+          isTruncated: false,
+          statusCode: res.status,
+          error: "Teks og:description kosong pada halaman.",
+          errorCode: "EMPTY_PREVIEW",
+        };
+      }
 
       // Tolak jika menyerupai teks pembatas login generic
       if (isLoginWallText(decodedText)) {
@@ -253,6 +301,7 @@ export async function fetchThreadsPreview(
           statusCode: res.status,
           error:
             "Teks terdeteksi sebagai halaman login Threads (bukan postingan).",
+          errorCode: "LOGIN_WALL",
         };
       }
 
@@ -282,6 +331,7 @@ export async function fetchThreadsPreview(
         canonicalUrl: currentUrl,
         isTruncated: false,
         error: isAbort ? "Timeout melebihi 8 detik." : message,
+        errorCode: isAbort ? "TIMEOUT" : "NETWORK_ERROR",
       };
     }
   }
@@ -292,5 +342,6 @@ export async function fetchThreadsPreview(
     canonicalUrl: currentUrl,
     isTruncated: false,
     error: "Melebihi batas maksimal redirect.",
+    errorCode: "REDIRECT_LOOP",
   };
 }
