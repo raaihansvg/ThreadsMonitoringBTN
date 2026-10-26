@@ -210,7 +210,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 10000);
+      const timeoutId = setTimeout(() => controller.abort(), 20000);
 
       const response = await fetch(`${serverUrl}/api/mentions`, {
         method: "POST",
@@ -249,11 +249,17 @@ document.addEventListener("DOMContentLoaded", async () => {
           data?.error ||
           "Aplikasi tidak dapat dihubungi. Periksa alamat aplikasi.";
       }
-    } catch {
-      updateConnectionBadge(false);
-      statusMsg.className = "status error";
-      statusMsg.textContent =
-        "Aplikasi tidak dapat dihubungi. Periksa alamat aplikasi.";
+    } catch (err) {
+      if (err instanceof Error && err.name === "AbortError") {
+        statusMsg.className = "status error";
+        statusMsg.textContent =
+          "Permintaan memakan waktu lebih lama dari biasanya. Periksa halaman Draf.";
+      } else {
+        updateConnectionBadge(false);
+        statusMsg.className = "status error";
+        statusMsg.textContent =
+          "Aplikasi tidak dapat dihubungi. Periksa alamat aplikasi.";
+      }
     } finally {
       btnSend.disabled = false;
     }
