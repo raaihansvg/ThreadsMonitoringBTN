@@ -12,7 +12,11 @@ import {
   getEndOfWIBDay,
   getWIBDateString,
 } from "@/lib/time";
-import { getThresholds } from "@/lib/config/thresholds";
+import {
+  getThresholds,
+  DEFAULT_THRESHOLDS,
+  type SystemThresholds,
+} from "@/lib/config/thresholds";
 import { detectSpike } from "@/lib/alert/spike";
 import { sendAlertEmail } from "@/lib/email/service";
 
@@ -230,7 +234,8 @@ export type AlertDbClient = Prisma.TransactionClient | typeof prisma;
  */
 export async function syncAlertsAfterMentionDeletion(
   deletedMention: DeletedMentionAlertInput,
-  client: AlertDbClient = prisma
+  client: AlertDbClient = prisma,
+  thresholds?: SystemThresholds
 ): Promise<void> {
   if (deletedMention.status === MentionStatus.DRAF) {
     return;
@@ -240,6 +245,10 @@ export async function syncAlertsAfterMentionDeletion(
   const todayStr = getWIBDateString(deletedMention.tanggalDitemukan);
   const startOfToday = getStartOfWIBDay(todayStr);
   const endOfToday = getEndOfWIBDay(todayStr);
+
+  const resolvedThresholds =
+    thresholds ??
+    (await getThresholds().catch(() => ({ ...DEFAULT_THRESHOLDS })));
 
   // 1. Sinkronisasi Alert Prioritas PERLU_PERHATIAN
   if (deletedMention.prioritas === Priority.PERLU_PERHATIAN) {
@@ -293,53 +302,54 @@ export async function syncAlertsAfterMentionDeletion(
       ? InputSourceType.CONTOH
       : deletedMention.sumberInput;
 
-    const todayMentions = await client.mention.findMany({
-      where: {
-        topik: deletedMention.topik,
-        status: { not: MentionStatus.DRAF },
-        tanggalDitemukan: { gte: startOfToday, lte: endOfToday },
-        ...sourceFilter,
-      },
-      select: { id: true, sentimen: true },
-    });
+    const sevenDaysAgo = new Date(
+      startOfToday.getTime() - 7 * 24 * 60 * 60 * 1000
+    );
+
+    const [todayMentions, pastMentionsCount] = await Promise.all([
+      client.mention.findMany({
+        where: {
+          topik: deletedMention.topik,
+          status: { not: MentionStatus.DRAF },
+          tanggalDitemukan: { gte: startOfToday, lte: endOfToday },
+          ...sourceFilter,
+        },
+        select: { id: true, sentimen: true },
+      }),
+      client.mention.count({
+        where: {
+          topik: deletedMention.topik,
+          status: { not: MentionStatus.DRAF },
+          tanggalDitemukan: { gte: sevenDaysAgo, lt: startOfToday },
+          ...sourceFilter,
+        },
+      }),
+    ]);
 
     const currentVolume = todayMentions.length;
     const negativeCount = todayMentions.filter(
       (m) => m.sentimen === "NEGATIF"
     ).length;
-
-    const sevenDaysAgo = new Date(
-      startOfToday.getTime() - 7 * 24 * 60 * 60 * 1000
-    );
-    const pastMentionsCount = await client.mention.count({
-      where: {
-        topik: deletedMention.topik,
-        status: { not: MentionStatus.DRAF },
-        tanggalDitemukan: { gte: sevenDaysAgo, lt: startOfToday },
-        ...sourceFilter,
-      },
-    });
     const baselineAverage = pastMentionsCount / 7;
 
-    const thresholds = await getThresholds();
     const spike = detectSpike(
       {
         currentVolume,
         baselineAverage,
-        volumeThresholdMultiplier: thresholds.volumeMultiplier,
+        volumeThresholdMultiplier: resolvedThresholds.volumeMultiplier,
         negativeCount,
-        negativeThreshold: thresholds.negativeThreshold,
-        negativePercentageThreshold: thresholds.negativePercentage,
+        negativeThreshold: resolvedThresholds.negativeThreshold,
+        negativePercentageThreshold: resolvedThresholds.negativePercentage,
       },
-      thresholds
+      resolvedThresholds
     );
 
     if (spike.triggered) {
       const ambangDipakai =
         spike.type === "SENTIMEN_NEGATIF"
-          ? thresholds.negativeThreshold
+          ? resolvedThresholds.negativeThreshold
           : Math.round(
-              thresholds.volumeMultiplier * Math.max(1, baselineAverage)
+              resolvedThresholds.volumeMultiplier * Math.max(1, baselineAverage)
             );
       const jumlah =
         spike.type === "SENTIMEN_NEGATIF" ? negativeCount : currentVolume;

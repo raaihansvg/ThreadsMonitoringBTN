@@ -5,6 +5,7 @@ import { updateMentionSchema } from "@/lib/validation/schemas";
 import { maskPii } from "@/lib/pii";
 import { MentionStatus } from "@prisma/client";
 import { syncAlertsAfterMentionDeletion } from "@/lib/alert/service";
+import { getThresholds, DEFAULT_THRESHOLDS } from "@/lib/config/thresholds";
 
 export const dynamic = "force-dynamic";
 
@@ -129,12 +130,18 @@ export async function DELETE(
       });
     }
 
+    // Ambil konfigurasi ambang batas sebelum transaksi dibuka untuk mengurangi
+    // beban dan durasi koneksi di dalam Prisma interactive transaction.
+    const thresholds = await getThresholds().catch(() => ({
+      ...DEFAULT_THRESHOLDS,
+    }));
+
     await prisma.$transaction(
       async (tx) => {
         await tx.mention.delete({
           where: { id },
         });
-        await syncAlertsAfterMentionDeletion(mention, tx);
+        await syncAlertsAfterMentionDeletion(mention, tx, thresholds);
       },
       { timeout: 15000 }
     );

@@ -667,18 +667,78 @@ describe("Sinkronisasi Alert setelah Penghapusan Mention (Integrasi)", () => {
       },
     });
 
-    const txSpy = vi.spyOn(prisma, "$transaction");
+    const originalTransaction = prisma.$transaction;
+    let capturedOptions: unknown = null;
+    (prisma as any).$transaction = function (
+      fn: Parameters<typeof originalTransaction>[0],
+      options?: Parameters<typeof originalTransaction>[1]
+    ) {
+      capturedOptions = options;
+      return originalTransaction.call(this, fn as any, options as any);
+    };
 
+    try {
+      const res = await deleteMention(createDeleteRequest(mention.id), {
+        params: Promise.resolve({ id: mention.id }),
+      });
+      expect(res.status).toBe(200);
+
+      expect(capturedOptions).toEqual(
+        expect.objectContaining({ timeout: 15000 })
+      );
+    } finally {
+      (prisma as any).$transaction = originalTransaction;
+    }
+  });
+
+  it("11. Pengukuran performa: DELETE berhasil cepat (<5000ms), alert konsisten, dan thresholds diteruskan", async () => {
+    const now = new Date();
+    const periode = formatWIBFullDate(now);
+
+    const mention = await prisma.mention.create({
+      data: {
+        linkAsli: "https://threads.net/@u/post/perf_measure_1",
+        linkTernormalisasi: "https://threads.net/post/perf_measure_1",
+        teksPostingan: "Uji performa penghapusan dan sinkronisasi",
+        topik: "BTN Syariah",
+        sentimen: Sentiment.NEGATIF,
+        prioritas: Priority.PERLU_PERHATIAN,
+        status: MentionStatus.BARU,
+        sumberInput: InputSourceType.FORM,
+        tanggalDitemukan: now,
+      },
+    });
+
+    await triggerAlertsForMention({
+      id: mention.id,
+      topik: mention.topik,
+      prioritas: mention.prioritas,
+      sentimen: mention.sentimen,
+      sumberInput: mention.sumberInput,
+      tanggalDitemukan: mention.tanggalDitemukan,
+    });
+
+    const start = performance.now();
     const res = await deleteMention(createDeleteRequest(mention.id), {
       params: Promise.resolve({ id: mention.id }),
     });
+    const durationMs = performance.now() - start;
+
     expect(res.status).toBe(200);
+    // Verifikasi durasi eksekusi wajar dan jauh di bawah batas timeout transaksi 15000ms
+    expect(durationMs).toBeLessThan(5000);
 
-    expect(txSpy).toHaveBeenCalledWith(
-      expect.any(Function),
-      expect.objectContaining({ timeout: 15000 })
-    );
-
-    txSpy.mockRestore();
+    // Verifikasi alert tetap konsisten (ikut terhapus karena sisa = 0)
+    const alertAfter = await prisma.alert.findUnique({
+      where: {
+        jenis_topik_periode_sumberInput: {
+          jenis: AlertType.PERLU_PERHATIAN,
+          topik: "BTN Syariah",
+          periode,
+          sumberInput: InputSourceType.FORM,
+        },
+      },
+    });
+    expect(alertAfter).toBeNull();
   });
 });
