@@ -7,7 +7,13 @@ import { GET as getAlerts } from "@/app/api/alerts/route";
 import { prisma } from "@/lib/prisma";
 import { createSignedSessionToken } from "@/lib/auth/session";
 import { NextRequest } from "next/server";
-import { InputSourceType, AlertType, Priority } from "@prisma/client";
+import {
+  InputSourceType,
+  AlertType,
+  Priority,
+  MentionStatus,
+} from "@prisma/client";
+import { getDuplicateNavigationInfo } from "@/lib/modal/modalInputLifecycle";
 
 describe("Alert Nyata & Pencarian Entri Lama (Tahap 3D)", () => {
   const testMentionIds: string[] = [];
@@ -150,5 +156,133 @@ describe("Alert Nyata & Pencarian Entri Lama (Tahap 3D)", () => {
     const searchIdData = await searchIdRes.json();
     expect(searchIdData.mentions.length).toBe(1);
     expect(searchIdData.mentions[0].id).toBe(createdId);
+  });
+
+  it("mengarahkan duplikat Draf ke /draf dan memastikan draf tidak muncul di daftar mention", async () => {
+    const uniqueId = `draft_dup_${Date.now()}`;
+    const testUrl = `https://www.threads.com/@user_btn/post/${uniqueId}`;
+
+    const draft = await prisma.mention.create({
+      data: {
+        linkAsli: testUrl,
+        linkTernormalisasi: `threads.com/@user_btn/post/${uniqueId}`,
+        teksPostingan: "Draf dari ekstensi yang belum disetujui",
+        topik: "BTN Mobile",
+        sentimen: "NEGATIF",
+        prioritas: Priority.PANTAU,
+        status: MentionStatus.DRAF,
+        sumberInput: InputSourceType.EKSTENSI,
+        headline: "Draf Ekstensi Belum Disetujui",
+      },
+    });
+    testMentionIds.push(draft.id);
+
+    // 1. checkUrl mengembalikan exists: true, id, status DRAF, dan sumberInput
+    const checkReq = new NextRequest(
+      `http://localhost:3000/api/mentions?checkUrl=${encodeURIComponent(testUrl)}`
+    );
+    const checkRes = await getMentions(checkReq);
+    const checkData = await checkRes.json();
+    expect(checkData.exists).toBe(true);
+    expect(checkData.id).toBe(draft.id);
+    expect(checkData.status).toBe("DRAF");
+    expect(checkData.sumberInput).toBe("EKSTENSI");
+
+    // 2. Evaluasi navigasi untuk duplikat DRAF
+    const nav = getDuplicateNavigationInfo(
+      checkData.status,
+      checkData.id,
+      testUrl
+    );
+    expect(nav.destination).toBe("/draf");
+    expect(nav.path).toBe("/draf");
+    expect(nav.message).toBe(
+      "Tautan ini sudah ada di antrean Draf. Tinjau dari halaman Draf."
+    );
+
+    // 3. Verifikasi Draf TIDAK muncul di daftar Mention reguler (GET /api/mentions)
+    const listReq = new NextRequest(
+      `http://localhost:3000/api/mentions?includeSample=true`
+    );
+    const listRes = await getMentions(listReq);
+    const listData = await listRes.json();
+    const foundInList = listData.mentions.some(
+      (m: { id: string }) => m.id === draft.id
+    );
+    expect(foundInList).toBe(false);
+  });
+
+  it("mengarahkan duplikat Mention aktif ke halaman /mention", async () => {
+    const uniqueId = `active_dup_${Date.now()}`;
+    const testUrl = `https://www.threads.com/@user_btn/post/${uniqueId}`;
+
+    const active = await prisma.mention.create({
+      data: {
+        linkAsli: testUrl,
+        linkTernormalisasi: `threads.com/@user_btn/post/${uniqueId}`,
+        teksPostingan: "Mention aktif yang sudah dipublikasikan",
+        topik: "KPR BTN",
+        sentimen: "POSITIF",
+        prioritas: Priority.RUTIN,
+        status: MentionStatus.BARU,
+        sumberInput: InputSourceType.FORM,
+        headline: "Mention Aktif",
+      },
+    });
+    testMentionIds.push(active.id);
+
+    const checkReq = new NextRequest(
+      `http://localhost:3000/api/mentions?checkUrl=${encodeURIComponent(testUrl)}`
+    );
+    const checkRes = await getMentions(checkReq);
+    const checkData = await checkRes.json();
+    expect(checkData.exists).toBe(true);
+    expect(checkData.id).toBe(active.id);
+    expect(checkData.status).toBe("BARU");
+
+    const nav = getDuplicateNavigationInfo(
+      checkData.status,
+      checkData.id,
+      testUrl
+    );
+    expect(nav.destination).toBe("/mention");
+    expect(nav.path).toContain(`/mention?id=${active.id}`);
+  });
+
+  it("memastikan data CONTOH tidak memicu duplikat saat includeSample=false", async () => {
+    const uniqueId = `sample_dup_${Date.now()}`;
+    const testUrl = `https://www.threads.com/@sample_btn/post/${uniqueId}`;
+
+    const sampleMention = await prisma.mention.create({
+      data: {
+        linkAsli: testUrl,
+        linkTernormalisasi: `threads.com/@sample_btn/post/${uniqueId}`,
+        teksPostingan: "Data contoh sistem monitoring",
+        topik: "Tabungan BTN",
+        sentimen: "NETRAL",
+        prioritas: Priority.RUTIN,
+        status: MentionStatus.BARU,
+        sumberInput: InputSourceType.CONTOH,
+        headline: "Sample Data",
+      },
+    });
+    testMentionIds.push(sampleMention.id);
+
+    // Saat includeSample=false, checkUrl TIDAK boleh menganggap tautan ini duplikat data nyata
+    const checkNonSampleReq = new NextRequest(
+      `http://localhost:3000/api/mentions?checkUrl=${encodeURIComponent(testUrl)}&includeSample=false`
+    );
+    const checkNonSampleRes = await getMentions(checkNonSampleReq);
+    const nonSampleData = await checkNonSampleRes.json();
+    expect(nonSampleData.exists).toBe(false);
+
+    // Saat includeSample=true, checkUrl tetap mendeteksi adanya data contoh
+    const checkSampleReq = new NextRequest(
+      `http://localhost:3000/api/mentions?checkUrl=${encodeURIComponent(testUrl)}&includeSample=true`
+    );
+    const checkSampleRes = await getMentions(checkSampleReq);
+    const sampleData = await checkSampleRes.json();
+    expect(sampleData.exists).toBe(true);
+    expect(sampleData.sumberInput).toBe("CONTOH");
   });
 });

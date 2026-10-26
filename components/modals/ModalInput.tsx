@@ -17,6 +17,7 @@ import {
   Clock,
 } from "lucide-react";
 import { maskPii } from "@/lib/pii";
+import { getDuplicateNavigationInfo } from "@/lib/modal/modalInputLifecycle";
 
 export function ModalInput() {
   const router = useRouter();
@@ -28,6 +29,7 @@ export function ModalInput() {
     triggerRefresh,
     showToast,
     confirmDialog,
+    showSampleData,
   } = useApp();
 
   // Lifecycle & Abort Refs
@@ -42,6 +44,8 @@ export function ModalInput() {
   const [step, setStep] = useState<1 | 2>(1);
   const [submitDuplicate, setSubmitDuplicate] = useState<{
     existingId?: string;
+    status?: string;
+    sumberInput?: string;
     url?: string;
   } | null>(null);
   const [submitError, setSubmitError] = useState<string>("");
@@ -80,6 +84,8 @@ export function ModalInput() {
   const [duplicateEntry, setDuplicateEntry] = useState<{
     id: string;
     headline: string;
+    status?: string;
+    sumberInput?: string;
   } | null>(null);
   const [detectedPii, setDetectedPii] = useState<string[]>([]);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -230,43 +236,51 @@ export function ModalInput() {
   };
 
   // Validate and detect duplicate URL
-  const checkUrlDuplicate = useCallback(async (testUrl: string) => {
-    const trimmed = testUrl.trim();
-    if (!trimmed) {
-      setUrlError("");
-      setDuplicateEntry(null);
-      return;
-    }
-
-    if (
-      !trimmed.startsWith("https://threads.net") &&
-      !trimmed.startsWith("https://threads.com") &&
-      !trimmed.startsWith("https://www.threads.net") &&
-      !trimmed.startsWith("https://www.threads.com")
-    ) {
-      setUrlError("Gunakan tautan HTTPS dari threads.net atau threads.com.");
-      setDuplicateEntry(null);
-      return;
-    }
-
-    setUrlError("");
-    setIsCheckingUrl(true);
-    try {
-      const res = await fetch(
-        `/api/mentions?checkUrl=${encodeURIComponent(trimmed)}`
-      );
-      const data = await res.json();
-      if (data.exists && data.mention) {
-        setDuplicateEntry(data.mention);
-      } else {
+  const checkUrlDuplicate = useCallback(
+    async (testUrl: string) => {
+      const trimmed = testUrl.trim();
+      if (!trimmed) {
+        setUrlError("");
         setDuplicateEntry(null);
+        return;
       }
-    } catch {
-      // Silently ignore network check fail
-    } finally {
-      setIsCheckingUrl(false);
-    }
-  }, []);
+
+      if (
+        !trimmed.startsWith("https://threads.net") &&
+        !trimmed.startsWith("https://threads.com") &&
+        !trimmed.startsWith("https://www.threads.net") &&
+        !trimmed.startsWith("https://www.threads.com")
+      ) {
+        setUrlError("Gunakan tautan HTTPS dari threads.net atau threads.com.");
+        setDuplicateEntry(null);
+        return;
+      }
+
+      setUrlError("");
+      setIsCheckingUrl(true);
+      try {
+        const res = await fetch(
+          `/api/mentions?checkUrl=${encodeURIComponent(trimmed)}&includeSample=${showSampleData}`
+        );
+        const data = await res.json();
+        if (data.exists) {
+          setDuplicateEntry({
+            id: data.id || data.mention?.id || "",
+            headline: data.mention?.headline || "",
+            status: data.status || data.mention?.status,
+            sumberInput: data.sumberInput || data.mention?.sumberInput,
+          });
+        } else {
+          setDuplicateEntry(null);
+        }
+      } catch {
+        // Silently ignore network check fail
+      } finally {
+        setIsCheckingUrl(false);
+      }
+    },
+    [showSampleData]
+  );
 
   useEffect(() => {
     if (url) {
@@ -619,6 +633,8 @@ export function ModalInput() {
       if (res.status === 409) {
         setSubmitDuplicate({
           existingId: data.existingId,
+          status: data.status,
+          sumberInput: data.sumberInput,
           url: url.trim(),
         });
         return;
@@ -677,36 +693,44 @@ export function ModalInput() {
         </div>
 
         {/* Banner Duplikat 409 pada submit */}
-        {submitDuplicate && (
-          <div className="mb-4 flex items-start justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-xs text-amber-900 shadow-sm">
-            <div className="flex items-start gap-2.5">
-              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
-              <div>
-                <p className="font-bold text-amber-950">
-                  Tautan ini sudah tercatat
-                </p>
-                <p className="mt-0.5 text-amber-800">
-                  Tautan postingan Threads ini sudah pernah disimpan sebelumnya
-                  ke sistem.
-                </p>
+        {submitDuplicate &&
+          (() => {
+            const navInfo = getDuplicateNavigationInfo(
+              submitDuplicate.status,
+              submitDuplicate.existingId,
+              submitDuplicate.url || url.trim()
+            );
+            return (
+              <div className="mb-4 flex items-start justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-xs text-amber-900 shadow-sm">
+                <div className="flex items-start gap-2.5">
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+                  <div>
+                    <p className="font-bold text-amber-950">
+                      {submitDuplicate.status === "DRAF"
+                        ? "Tautan sudah ada di antrean Draf"
+                        : "Tautan ini sudah tercatat"}
+                    </p>
+                    <p className="mt-0.5 text-amber-800">
+                      {submitDuplicate.status === "DRAF"
+                        ? "Tautan ini sudah ada di antrean Draf. Tinjau dari halaman Draf."
+                        : "Tautan postingan Threads ini sudah pernah disimpan sebelumnya ke sistem."}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    resetForm();
+                    setInputModalOpen(false);
+                    router.push(navInfo.path);
+                  }}
+                  className="shrink-0 rounded-full bg-amber-600 px-3 py-1.5 text-xs font-bold text-white transition hover:bg-amber-700"
+                >
+                  {navInfo.buttonLabel}
+                </button>
               </div>
-            </div>
-            <button
-              type="button"
-              onClick={() => {
-                const targetSearch = submitDuplicate.url || url.trim();
-                resetForm();
-                setInputModalOpen(false);
-                router.push(
-                  `/mention?search=${encodeURIComponent(targetSearch)}`
-                );
-              }}
-              className="shrink-0 rounded-full bg-amber-600 px-3 py-1.5 text-xs font-bold text-white transition hover:bg-amber-700"
-            >
-              Buka entri lama
-            </button>
-          </div>
-        )}
+            );
+          })()}
 
         {/* Banner Error Submit */}
         {submitError && (
@@ -774,30 +798,40 @@ export function ModalInput() {
               )}
 
               {/* Banner Duplikat */}
-              {duplicateEntry && (
-                <div className="mt-2 flex items-center justify-between rounded-2xl border border-[#0055FF]/25 bg-[#EBF3FF] p-3 text-[#0A192F]">
-                  <div className="flex items-center gap-2">
-                    <AlertCircle className="h-4 w-4 text-[#0055FF]" />
-                    <span className="text-xs font-semibold">
-                      Tautan ini sudah tercatat di sistem
-                    </span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const targetUrl = url.split("?")[0];
-                      const existingId = duplicateEntry.id;
-                      resetForm();
-                      setInputModalOpen(false);
-                      window.location.href = `/mention?id=${encodeURIComponent(existingId)}&search=${encodeURIComponent(targetUrl)}`;
-                    }}
-                    className="flex items-center gap-1 rounded-full bg-[#0055FF] px-3 py-1 text-xs font-bold text-white hover:bg-blue-700"
-                  >
-                    <span>Buka entri lama</span>
-                    <ExternalLink className="h-3 w-3" />
-                  </button>
-                </div>
-              )}
+              {duplicateEntry &&
+                (() => {
+                  const navInfo = getDuplicateNavigationInfo(
+                    duplicateEntry.status,
+                    duplicateEntry.id,
+                    url
+                  );
+                  return (
+                    <div className="mt-2 flex items-center justify-between rounded-2xl border border-[#0055FF]/25 bg-[#EBF3FF] p-3 text-[#0A192F]">
+                      <div className="flex items-center gap-2">
+                        <AlertCircle className="h-4 w-4 text-[#0055FF]" />
+                        <span className="text-xs font-semibold">
+                          {navInfo.message}
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          resetForm();
+                          setInputModalOpen(false);
+                          if (navInfo.destination === "/draf") {
+                            router.push(navInfo.path);
+                          } else {
+                            window.location.href = navInfo.path;
+                          }
+                        }}
+                        className="flex items-center gap-1 rounded-full bg-[#0055FF] px-3 py-1 text-xs font-bold text-white hover:bg-blue-700"
+                      >
+                        <span>{navInfo.buttonLabel}</span>
+                        <ExternalLink className="h-3 w-3" />
+                      </button>
+                    </div>
+                  );
+                })()}
             </div>
 
             {/* Kolom Teks Postingan */}

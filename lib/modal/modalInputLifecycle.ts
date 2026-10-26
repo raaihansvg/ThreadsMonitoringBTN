@@ -18,12 +18,22 @@ export interface ModalFormValues {
   previewError: string;
   previewCooldown: number;
   urlError: string;
-  duplicateEntry: { id: string; headline: string } | null;
+  duplicateEntry: {
+    id: string;
+    headline: string;
+    status?: string;
+    sumberInput?: string;
+  } | null;
   detectedPii: string[];
   isAnalyzing: boolean;
   analysisFailed: boolean;
   isSubmitting: boolean;
-  submitDuplicate: { existingId?: string; url?: string } | null;
+  submitDuplicate: {
+    existingId?: string;
+    status?: string;
+    sumberInput?: string;
+    url?: string;
+  } | null;
   submitError: string;
   step: 1 | 2;
   initialAnalysis: {
@@ -153,4 +163,41 @@ export function shouldIgnoreAbortError(
   if (isStale) return true;
   if (err instanceof Error && err.name === "AbortError") return true;
   return false;
+}
+
+export interface DuplicateNavigationTarget {
+  destination: "/draf" | "/mention";
+  path: string;
+  message: string;
+  buttonLabel: string;
+}
+
+export function getDuplicateNavigationInfo(
+  status?: string,
+  id?: string,
+  url?: string
+): DuplicateNavigationTarget {
+  if (status === "DRAF") {
+    return {
+      destination: "/draf",
+      path: "/draf",
+      message:
+        "Tautan ini sudah ada di antrean Draf. Tinjau dari halaman Draf.",
+      buttonLabel: "Buka antrean Draf",
+    };
+  }
+
+  const cleanUrl = url ? url.split("?")[0] : "";
+  const query = id
+    ? `?id=${encodeURIComponent(id)}&search=${encodeURIComponent(cleanUrl)}`
+    : cleanUrl
+      ? `?search=${encodeURIComponent(cleanUrl)}`
+      : "";
+
+  return {
+    destination: "/mention",
+    path: `/mention${query}`,
+    message: "Tautan ini sudah tercatat di sistem",
+    buttonLabel: "Buka entri lama",
+  };
 }

@@ -27,6 +27,11 @@ export async function GET(req: NextRequest) {
     // Endpoint cepat untuk cek duplikat URL
     const checkUrl = searchParams.get("checkUrl");
     if (checkUrl) {
+      const includeSample = searchParams.get("includeSample") !== "false";
+      const sampleFilter = includeSample
+        ? {}
+        : { sumberInput: { not: InputSourceType.CONTOH } };
+
       const urlCheck = validateThreadsUrl(checkUrl);
       const cleanUrl =
         urlCheck.valid && urlCheck.normalizedUrl
@@ -35,15 +40,33 @@ export async function GET(req: NextRequest) {
 
       const existing = await prisma.mention.findFirst({
         where: {
-          OR: [
-            { linkTernormalisasi: cleanUrl },
-            { linkAsli: checkUrl.trim() },
-            { linkAsli: cleanUrl },
+          AND: [
+            sampleFilter,
+            {
+              OR: [
+                { linkTernormalisasi: cleanUrl },
+                { linkAsli: checkUrl.trim() },
+                { linkAsli: cleanUrl },
+              ],
+            },
           ],
         },
-        select: { id: true, headline: true, linkAsli: true },
+        select: {
+          id: true,
+          headline: true,
+          linkAsli: true,
+          status: true,
+          sumberInput: true,
+        },
       });
-      return NextResponse.json({ exists: !!existing, mention: existing });
+
+      return NextResponse.json({
+        exists: !!existing,
+        id: existing?.id,
+        status: existing?.status,
+        sumberInput: existing?.sumberInput,
+        mention: existing,
+      });
     }
 
     const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10));
@@ -271,6 +294,8 @@ export async function POST(req: NextRequest) {
           ok: false,
           error: "Tautan ini sudah tercatat di sistem.",
           existingId: existing.id,
+          status: existing.status,
+          sumberInput: existing.sumberInput,
         },
         { status: 409 }
       );

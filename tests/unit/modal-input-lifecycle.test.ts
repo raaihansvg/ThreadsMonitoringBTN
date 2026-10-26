@@ -6,6 +6,7 @@ import {
   isResponseStale,
   applyAnalysisResult,
   shouldIgnoreAbortError,
+  getDuplicateNavigationInfo,
   ModalFormValues,
 } from "@/lib/modal/modalInputLifecycle";
 
@@ -204,5 +205,45 @@ describe("ModalInput Lifecycle & Race Condition Guard (Audit Fix)", () => {
     expect(isLoading).toBe(false);
 
     vi.useRealTimers();
+  });
+
+  it("8. Navigasi duplikat DRAF selalu mengarah ke antrean /draf", () => {
+    const target = getDuplicateNavigationInfo(
+      "DRAF",
+      "draft_id_123",
+      "https://www.threads.net/@user/post/abc?hl=id"
+    );
+
+    expect(target.destination).toBe("/draf");
+    expect(target.path).toBe("/draf");
+    expect(target.message).toBe(
+      "Tautan ini sudah ada di antrean Draf. Tinjau dari halaman Draf."
+    );
+    expect(target.buttonLabel).toBe("Buka antrean Draf");
+  });
+
+  it("9. Navigasi duplikat non-DRAF mengarah ke halaman Mention", () => {
+    const targetActive = getDuplicateNavigationInfo(
+      "BARU",
+      "mention_id_456",
+      "https://www.threads.net/@user/post/active123"
+    );
+
+    expect(targetActive.destination).toBe("/mention");
+    expect(targetActive.path).toBe(
+      "/mention?id=mention_id_456&search=https%3A%2F%2Fwww.threads.net%2F%40user%2Fpost%2Factive123"
+    );
+    expect(targetActive.message).toBe("Tautan ini sudah tercatat di sistem");
+    expect(targetActive.buttonLabel).toBe("Buka entri lama");
+
+    const targetNoId = getDuplicateNavigationInfo(
+      undefined,
+      undefined,
+      "https://www.threads.net/@user/post/no_id"
+    );
+    expect(targetNoId.destination).toBe("/mention");
+    expect(targetNoId.path).toBe(
+      "/mention?search=https%3A%2F%2Fwww.threads.net%2F%40user%2Fpost%2Fno_id"
+    );
   });
 });
