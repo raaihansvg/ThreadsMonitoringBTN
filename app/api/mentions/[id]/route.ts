@@ -129,12 +129,15 @@ export async function DELETE(
       });
     }
 
-    await prisma.$transaction(async (tx) => {
-      await tx.mention.delete({
-        where: { id },
-      });
-      await syncAlertsAfterMentionDeletion(mention, tx);
-    });
+    await prisma.$transaction(
+      async (tx) => {
+        await tx.mention.delete({
+          where: { id },
+        });
+        await syncAlertsAfterMentionDeletion(mention, tx);
+      },
+      { timeout: 15000 }
+    );
 
     return NextResponse.json({
       ok: true,

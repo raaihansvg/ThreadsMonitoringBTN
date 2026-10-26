@@ -11,6 +11,7 @@ import {
   Sentiment,
 } from "@prisma/client";
 import { triggerAlertsForMention } from "@/lib/alert/service";
+import * as alertService from "@/lib/alert/service";
 import * as emailService from "@/lib/email/service";
 import { formatWIBFullDate } from "@/lib/time";
 
@@ -87,6 +88,12 @@ describe("Sinkronisasi Alert setelah Penghapusan Mention (Integrasi)", () => {
       },
     });
     expect(alertAfter).toBeNull();
+
+    // Memastikan Mention benar-benar tidak ada di DB setelah request berhasil
+    const mentionInDb = await prisma.mention.findUnique({
+      where: { id: mention.id },
+    });
+    expect(mentionInDb).toBeNull();
   });
 
   it("2. Dua Mention PERLU_PERHATIAN -> hapus satu, Alert tetap dengan jumlah 1", async () => {
@@ -599,5 +606,79 @@ describe("Sinkronisasi Alert setelah Penghapusan Mention (Integrasi)", () => {
 
     // Verifikasi sendAlertEmail sama sekali tidak dipanggil saat DELETE
     expect(emailSpy).not.toHaveBeenCalled();
+  });
+
+  it("9. Kegagalan sinkronisasi menyebabkan transaksi rollback (Mention tidak terhapus)", async () => {
+    const now = new Date();
+
+    const mention = await prisma.mention.create({
+      data: {
+        linkAsli: "https://threads.net/@u/post/rollback_test",
+        linkTernormalisasi: "https://threads.net/post/rollback_test",
+        teksPostingan: "Uji rollback transaksi",
+        topik: "KPR BTN",
+        sentimen: Sentiment.NEGATIF,
+        prioritas: Priority.PERLU_PERHATIAN,
+        status: MentionStatus.BARU,
+        sumberInput: InputSourceType.FORM,
+        tanggalDitemukan: now,
+      },
+    });
+
+    // Mock syncAlertsAfterMentionDeletion agar melempar error di dalam transaksi
+    const syncSpy = vi
+      .spyOn(alertService, "syncAlertsAfterMentionDeletion")
+      .mockRejectedValueOnce(
+        new Error("Simulasi kegagalan database saat sinkronisasi alert")
+      );
+
+    const res = await deleteMention(createDeleteRequest(mention.id), {
+      params: Promise.resolve({ id: mention.id }),
+    });
+
+    expect(res.status).toBe(500);
+    const body = await res.json();
+    expect(body.ok).toBe(false);
+
+    // Karena transaksi di-rollback secara utuh, Mention tetap ada di DB
+    const mentionStillInDb = await prisma.mention.findUnique({
+      where: { id: mention.id },
+    });
+    expect(mentionStillInDb).not.toBeNull();
+    expect(mentionStillInDb?.id).toBe(mention.id);
+
+    syncSpy.mockRestore();
+  });
+
+  it("10. Transaksi DELETE dipanggil dengan opsi timeout 15000 ms", async () => {
+    const now = new Date();
+
+    const mention = await prisma.mention.create({
+      data: {
+        linkAsli: "https://threads.net/@u/post/timeout_test",
+        linkTernormalisasi: "https://threads.net/post/timeout_test",
+        teksPostingan: "Uji opsi timeout transaksi",
+        topik: "KPR BTN",
+        sentimen: Sentiment.POSITIF,
+        prioritas: Priority.RUTIN,
+        status: MentionStatus.BARU,
+        sumberInput: InputSourceType.FORM,
+        tanggalDitemukan: now,
+      },
+    });
+
+    const txSpy = vi.spyOn(prisma, "$transaction");
+
+    const res = await deleteMention(createDeleteRequest(mention.id), {
+      params: Promise.resolve({ id: mention.id }),
+    });
+    expect(res.status).toBe(200);
+
+    expect(txSpy).toHaveBeenCalledWith(
+      expect.any(Function),
+      expect.objectContaining({ timeout: 15000 })
+    );
+
+    txSpy.mockRestore();
   });
 });
