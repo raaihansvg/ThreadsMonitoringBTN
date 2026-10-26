@@ -4,6 +4,7 @@ import {
   InputSourceType,
   Priority,
   MentionStatus,
+  Prisma,
 } from "@prisma/client";
 import {
   formatWIBFullDate,
@@ -199,4 +200,171 @@ export async function triggerAlertsForMention(mention: MentionAlertInput) {
   }
 
   return alertsCreated;
+}
+
+export interface DeletedMentionAlertInput {
+  id?: string;
+  topik?: string | null;
+  prioritas: Priority;
+  sentimen: string;
+  status: MentionStatus;
+  sumberInput: InputSourceType;
+  tanggalDitemukan: Date;
+}
+
+export type AlertDbClient = Prisma.TransactionClient | typeof prisma;
+
+/**
+ * Sinkronisasi Alert setelah Mention dihapus:
+ * 1. Jika status Mention adalah DRAF, tidak ada alert yang perlu disinkronkan.
+ * 2. Alert Prioritas PERLU_PERHATIAN:
+ *    - Dihitung ulang mention non-DRAF tersisa dengan prioritas PERLU_PERHATIAN pada topik, periode WIB, dan sumberInput yang sama.
+ *    - Jika sisa count = 0, hapus record Alert terkait.
+ *    - Jika sisa count > 0, perbarui nilai jumlah (status dibaca dipertahankan).
+ * 3. Alert LONJAKAN:
+ *    - Dihitung ulang kondisi lonjakan (detectSpike) dari mention non-DRAF tersisa pada hari dan topik tersebut.
+ *    - Jika spike tidak lagi terpicu, hapus record Alert LONJAKAN terkait.
+ *    - Jika masih terpicu, perbarui jumlah dan ambangDipakai (status dibaca dipertahankan).
+ * 4. Isolasi sumber: Mention CONTOH hanya mengevaluasi/menghapus alert CONTOH; data nyata hanya data nyata.
+ * 5. TIDAK mengirim email saat penghapusan mention.
+ */
+export async function syncAlertsAfterMentionDeletion(
+  deletedMention: DeletedMentionAlertInput,
+  client: AlertDbClient = prisma
+): Promise<void> {
+  if (deletedMention.status === MentionStatus.DRAF) {
+    return;
+  }
+
+  const periode = formatWIBFullDate(deletedMention.tanggalDitemukan);
+  const todayStr = getWIBDateString(deletedMention.tanggalDitemukan);
+  const startOfToday = getStartOfWIBDay(todayStr);
+  const endOfToday = getEndOfWIBDay(todayStr);
+
+  // 1. Sinkronisasi Alert Prioritas PERLU_PERHATIAN
+  if (deletedMention.prioritas === Priority.PERLU_PERHATIAN) {
+    const alertTopik = deletedMention.topik || "Umum";
+    const topicFilter =
+      alertTopik === "Umum"
+        ? { OR: [{ topik: null }, { topik: "Umum" }] }
+        : { topik: alertTopik };
+
+    const remainingUrgentCount = await client.mention.count({
+      where: {
+        status: { not: MentionStatus.DRAF },
+        prioritas: Priority.PERLU_PERHATIAN,
+        sumberInput: deletedMention.sumberInput,
+        tanggalDitemukan: { gte: startOfToday, lte: endOfToday },
+        ...topicFilter,
+      },
+    });
+
+    if (remainingUrgentCount === 0) {
+      await client.alert.deleteMany({
+        where: {
+          jenis: AlertType.PERLU_PERHATIAN,
+          topik: alertTopik,
+          periode,
+          sumberInput: deletedMention.sumberInput,
+        },
+      });
+    } else {
+      await client.alert.updateMany({
+        where: {
+          jenis: AlertType.PERLU_PERHATIAN,
+          topik: alertTopik,
+          periode,
+          sumberInput: deletedMention.sumberInput,
+        },
+        data: {
+          jumlah: remainingUrgentCount,
+        },
+      });
+    }
+  }
+
+  // 2. Sinkronisasi Alert LONJAKAN
+  if (deletedMention.topik) {
+    const isSample = deletedMention.sumberInput === InputSourceType.CONTOH;
+    const sourceFilter = isSample
+      ? { sumberInput: InputSourceType.CONTOH }
+      : { sumberInput: { not: InputSourceType.CONTOH } };
+    const alertSumber = isSample
+      ? InputSourceType.CONTOH
+      : deletedMention.sumberInput;
+
+    const todayMentions = await client.mention.findMany({
+      where: {
+        topik: deletedMention.topik,
+        status: { not: MentionStatus.DRAF },
+        tanggalDitemukan: { gte: startOfToday, lte: endOfToday },
+        ...sourceFilter,
+      },
+      select: { id: true, sentimen: true },
+    });
+
+    const currentVolume = todayMentions.length;
+    const negativeCount = todayMentions.filter(
+      (m) => m.sentimen === "NEGATIF"
+    ).length;
+
+    const sevenDaysAgo = new Date(
+      startOfToday.getTime() - 7 * 24 * 60 * 60 * 1000
+    );
+    const pastMentionsCount = await client.mention.count({
+      where: {
+        topik: deletedMention.topik,
+        status: { not: MentionStatus.DRAF },
+        tanggalDitemukan: { gte: sevenDaysAgo, lt: startOfToday },
+        ...sourceFilter,
+      },
+    });
+    const baselineAverage = pastMentionsCount / 7;
+
+    const thresholds = await getThresholds();
+    const spike = detectSpike(
+      {
+        currentVolume,
+        baselineAverage,
+        volumeThresholdMultiplier: thresholds.volumeMultiplier,
+        negativeCount,
+        negativeThreshold: thresholds.negativeThreshold,
+        negativePercentageThreshold: thresholds.negativePercentage,
+      },
+      thresholds
+    );
+
+    if (spike.triggered) {
+      const ambangDipakai =
+        spike.type === "SENTIMEN_NEGATIF"
+          ? thresholds.negativeThreshold
+          : Math.round(
+              thresholds.volumeMultiplier * Math.max(1, baselineAverage)
+            );
+      const jumlah =
+        spike.type === "SENTIMEN_NEGATIF" ? negativeCount : currentVolume;
+
+      await client.alert.updateMany({
+        where: {
+          jenis: AlertType.LONJAKAN,
+          topik: deletedMention.topik,
+          periode,
+          sumberInput: alertSumber,
+        },
+        data: {
+          jumlah,
+          ambangDipakai,
+        },
+      });
+    } else {
+      await client.alert.deleteMany({
+        where: {
+          jenis: AlertType.LONJAKAN,
+          topik: deletedMention.topik,
+          periode,
+          sumberInput: alertSumber,
+        },
+      });
+    }
+  }
 }

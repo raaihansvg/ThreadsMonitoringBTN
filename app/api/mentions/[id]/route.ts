@@ -3,6 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { requireOfficer } from "@/lib/auth/session";
 import { updateMentionSchema } from "@/lib/validation/schemas";
 import { maskPii } from "@/lib/pii";
+import { MentionStatus } from "@prisma/client";
+import { syncAlertsAfterMentionDeletion } from "@/lib/alert/service";
 
 export const dynamic = "force-dynamic";
 
@@ -106,8 +108,32 @@ export async function DELETE(
       );
     }
 
-    await prisma.mention.delete({
+    const mention = await prisma.mention.findUnique({
       where: { id },
+    });
+
+    if (!mention) {
+      return NextResponse.json(
+        { ok: false, error: "Mention tidak ditemukan." },
+        { status: 404 }
+      );
+    }
+
+    if (mention.status === MentionStatus.DRAF) {
+      await prisma.mention.delete({
+        where: { id },
+      });
+      return NextResponse.json({
+        ok: true,
+        message: "Mention berhasil dihapus.",
+      });
+    }
+
+    await prisma.$transaction(async (tx) => {
+      await tx.mention.delete({
+        where: { id },
+      });
+      await syncAlertsAfterMentionDeletion(mention, tx);
     });
 
     return NextResponse.json({
@@ -115,6 +141,10 @@ export async function DELETE(
       message: "Mention berhasil dihapus.",
     });
   } catch (error) {
+    console.error(
+      "[DELETE /api/mentions/[id]] Gagal menghapus mention:",
+      error instanceof Error ? error.message : "Kesalahan server"
+    );
     return NextResponse.json(
       {
         ok: false,
