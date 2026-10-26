@@ -106,6 +106,7 @@ ${safeText}
       generationConfig: {
         responseMimeType: "application/json",
         temperature: 0.1,
+        maxOutputTokens: 350,
         ...(model.includes("3.5") || model.includes("3-")
           ? { thinkingConfig: { thinkingLevel: "MINIMAL" } }
           : {}),

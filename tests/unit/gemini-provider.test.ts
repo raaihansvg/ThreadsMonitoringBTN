@@ -273,4 +273,78 @@ describe("GeminiAnalysisProvider Unit Tests (Tahap 2C)", () => {
     process.env.GEMINI_TIMEOUT_MS = "-10";
     expect(getGeminiTimeoutMs()).toBe(15000);
   });
+
+  it("9. request Gemini menyertakan maxOutputTokens: 350, JSON format, thinkingConfig sesuai model, dan tidak melakukan retry", async () => {
+    process.env.GEMINI_API_KEY = "dummy-key";
+    delete process.env.GEMINI_MODEL; // Gunakan default gemini-3.5-flash-lite
+
+    interface CapturedBody {
+      generationConfig?: {
+        responseMimeType?: string;
+        temperature?: number;
+        maxOutputTokens?: number;
+        thinkingConfig?: { thinkingLevel?: string };
+      };
+    }
+
+    let capturedRequestBody: CapturedBody | null = null;
+    let callCount = 0;
+
+    global.fetch = vi.fn().mockImplementation(async (_url, init) => {
+      callCount++;
+      capturedRequestBody = JSON.parse(
+        String(init?.body || "{}")
+      ) as CapturedBody;
+      return {
+        ok: true,
+        status: 200,
+        statusText: "OK",
+        json: async () => ({
+          candidates: [
+            {
+              content: {
+                parts: [
+                  {
+                    text: JSON.stringify({
+                      topik: "Lainnya",
+                      sentimen: "NETRAL",
+                      prioritas: "RUTIN",
+                      headline: "Uji maxOutputTokens",
+                      ringkasan: "Verifikasi konfigurasi generasi",
+                      kataKunci: ["uji"],
+                    }),
+                  },
+                ],
+              },
+            },
+          ],
+        }),
+      } as unknown as Response;
+    });
+
+    const provider = new GeminiAnalysisProvider(testTopics);
+    const result = await provider.analyze({ text: "Postingan pengujian" });
+
+    expect(result.penyedia).toBe("gemini");
+    expect(callCount).toBe(1);
+
+    const generationConfig = (capturedRequestBody as CapturedBody | null)
+      ?.generationConfig;
+
+    expect(generationConfig).toBeDefined();
+    expect(generationConfig?.responseMimeType).toBe("application/json");
+    expect(generationConfig?.temperature).toBe(0.1);
+    expect(generationConfig?.maxOutputTokens).toBe(350);
+    expect(generationConfig?.thinkingConfig?.thinkingLevel).toBe("MINIMAL");
+
+    // Uji dengan model tanpa 3.5 (mis. gemini-1.5-flash): thinkingConfig tidak disertakan, maxOutputTokens tetap 350
+    process.env.GEMINI_MODEL = "gemini-1.5-flash";
+    await provider.analyze({ text: "Postingan kedua" });
+
+    expect(callCount).toBe(2);
+    const generationConfigModel15 = (capturedRequestBody as CapturedBody | null)
+      ?.generationConfig;
+    expect(generationConfigModel15?.maxOutputTokens).toBe(350);
+    expect(generationConfigModel15?.thinkingConfig).toBeUndefined();
+  });
 });
